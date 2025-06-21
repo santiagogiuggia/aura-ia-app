@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aura IA Security - Aplicación</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM CDNs (as global variables) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel Standalone CDN for JSX transpilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- QR Code Library -->
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+    <!-- Chart.js CDN (for data visualizations) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Estilos para el placeholder del feed de video */
+        .video-feed-placeholder {
+            background-color: #2a4365; /* Dark blue from your palette */
+            min-height: 250px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            position: relative;
+        }
+        .video-feed-placeholder i {
+            font-size: 6rem; /* Large icon */
+            opacity: 0.5;
+            position: absolute;
+        }
+        /* Estilos generales para los contenedores de secciones */
+        .section-container {
+            padding: 1rem;
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        /* Estilos para las tablas */
+        .table-container {
+            overflow-x-auto;
+        }
+        .table-header {
+            background-color: #f7fafc; /* gray-100 */
+            color: #4a5568; /* gray-600 */
+            text-transform: uppercase;
+            font-size: 0.875rem; /* text-sm */
+            line-height: 1.25rem; /* leading-normal */
+        }
+        .table-row-hover:hover {
+            background-color: #edf2f7; /* gray-50 */
+        }
+        /* Estilos para el chat */
+        .chat-area {
+            background-color: #f7fafc; /* gray-100 */
+            height: 256px; /* h-64 */
+            overflow-y: auto;
+            border: 1px solid #e2e8f0; /* gray-200 */
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+        .message-bubble-user {
+            background-color: #3182ce; /* blue-600 */
+            color: white;
+        }
+        .message-bubble-guard {
+            background-color: #cbd5e0; /* gray-300 */
+            color: #2d3748; /* gray-800 */
+        }
+        .message-bubble-system {
+            background-color: #feebc8; /* yellow-200 */
+            color: #8b5f00; /* yellow-800 */
+            font-weight: 600;
+            text-align: center;
+        }
+
+        /* Chart container styling for responsiveness */
+        .chartjs-container {
+            position: relative;
+            width: 100%;
+            height: 300px; /* Default height */
+            max-width: 700px; /* Max width to prevent overly wide charts */
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: 1.5rem; /* mb-6 */
+        }
+        @media (min-width: 768px) { /* md breakpoint */
+            .chartjs-container {
+                height: 350px;
+            }
+        }
+        @media (min-width: 1024px) { /* lg breakpoint */
+            .chartjs-container {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- El script principal de la aplicación React va al final del body -->
+    <script type="text/babel">
+        window.onload = function() {
+            // Verifica que React y ReactDOM estén cargados
+            if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+                console.error("Error crítico: React o ReactDOM no se cargaron correctamente. Deteniendo la aplicación.");
+                return; 
+            }
+            if (typeof Chart === 'undefined') {
+                console.warn("Advertencia: Chart.js no se cargó correctamente. Los gráficos en la sección de Reportes no se renderizarán.");
+                // No detenemos la aplicación aquí para que el resto de la funcionalidad sea accesible
+            }
+            
+            const { useState, useEffect, useRef } = React;
+            
+            // Colores utilizados en la aplicación para mantener la coherencia
+            const COLORS = ['#3182ce', '#4299e1', '#63b3ed', '#90cdf4', '#a7d9f9'];
+
+            // Función para envolver etiquetas largas para Chart.js
+            const wrapLabel = (label, maxCharPerLine = 16) => {
+                if (typeof label !== 'string' || label.length <= maxCharPerLine) {
+                    return label;
+                }
+                const words = label.split(' ');
+                let lines = [];
+                let currentLine = '';
+                words.forEach(word => {
+                    if ((currentLine + word).length > maxCharPerLine && currentLine !== '') {
+                        lines.push(currentLine.trim());
+                        currentLine = word + ' ';
+                    } else {
+                        currentLine += word + ' ';
+                    }
+                });
+                lines.push(currentLine.trim());
+                return lines;
+            };
+
+            // Componente principal de la aplicación
+            function App() {
+                const [isLoggedIn, setIsLoggedIn] = useState(false);
+                const [userRole, setUserRole] = useState(''); // 'resident' o 'admin'
+                const [username, setUsername] = useState('');
+                const [password, setPassword] = useState('');
+                const [activeSection, setActiveSection] = useState('dashboard');
+                const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+                const [visits, setVisits] = useState([]);
+                const [servicePersonnel, setServicePersonnel] = useState([]);
+                const [notifications, setNotifications] = useState([
+                    { id: 1, type: 'info', message: 'Mantenimiento de ascensor programado para el lunes 24/06.' },
+                    { id: 2, type: 'alert', message: 'Actividad sospechosa detectada en perímetro Norte. Guardia en monitoreo.' },
+                    { id: 3, type: 'success', message: 'Visita de Juan Pérez autorizada por su unidad.' },
+                ]);
+                const [activityLog, setActivityLog] = useState([
+                    { id: 1, time: '14:30', type: 'Acceso', description: 'Visita de Juan Pérez autorizada y registrada.', icon: 'fas fa-user-check', color: 'text-green-500' },
+                    { id: 2, time: '14:25', type: 'Alerta IA', description: 'Detección de movimiento inusual en perímetro sector este.', icon: 'fas fa-exclamation-triangle', color: 'text-yellow-500' },
+                    { id: 3, time: '14:20', type: 'Ingreso', description: 'Personal de limpieza (María G. - DNI 123456) ingresó.', icon: 'fas fa-briefcase', color: 'text-blue-500' },
+                    { id: 4, time: '14:00', type: 'Sistema', description: 'Ronda de dron programada completada en sector sur.', icon: 'fas fa-drone', color: 'text-purple-500' },
+                ]);
+                const [incidents, setIncidents] = useState([
+                    { id: 1, date: '2025-06-15', time: '02:30', type: 'Intrusión Perimetral', status: 'Cerrado', priority: 'Alta', description: 'Detectado cruce de cerca en sector NW. Personal de campo despachado. Falsa alarma (animal).', attachments: ['/simulated-evidence-1.jpg'] },
+                    { id: 2, date: '2025-06-10', time: '18:15', type: 'Vehículo no autorizado', status: 'Cerrado', priority: 'Media', description: 'Vehículo con patente no registrada intentó acceso. Se negó y se retiró.', attachments: [] },
+                    { id: 3, date: '2025-06-08', time: '10:00', type: 'Pánico - Ascensor', status: 'Resuelto', priority: 'Urgente', description: 'Residente atrapado en ascensor. Reinicio remoto exitoso.', attachments: [] },
+                ]);
+                const [communityAnnouncements, setCommunityAnnouncements] = useState([
+                    { id: 1, date: '2025-06-20', title: 'Mantenimiento de Garitas de Acceso', content: 'Informamos que el mantenimiento de las garitas de acceso se realizará el 25/06 de 9 a 12hs. Podría haber demoras mínimas.' },
+                    { id: 2, date: '2025-06-18', title: 'Nueva Funcionalidad: Gestión de Encomiendas', content: 'Ya está disponible la nueva sección de gestión de encomiendas en la app para pre-autorizar y recibir notificaciones.' },
+                ]);
+                const [packages, setPackages] = useState([
+                    { id: 1, date: '2025-06-19', sender: 'Amazon', status: 'En Locker', tracking: 'ECOM12345', pickedUp: false },
+                    { id: 2, date: '2025-06-17', sender: 'Correo Argentino', status: 'Retirado', tracking: 'ARCOR98765', pickedUp: true },
+                ]);
+                const [cameraPrivacySettings, setCameraPrivacySettings] = useState([
+                    { id: 'cam1', name: 'Ingreso Principal', visibleToResidents: true },
+                    { id: 'cam2', name: 'Perímetro Norte', visibleToResidents: false },
+                    { id: 'cam3', name: 'Ascensor #1', visibleToResidents: true },
+                    { id: 'cam4', name: 'Estacionamiento', visibleToResidents: false },
+                ]);
+
+
+                // Datos para el gráfico de Ingresos y Egresos (Chart.js compatible)
+                const adminReportData = {
+                    labels: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio'],
+                    datasets: [
+                        {
+                            label: 'Ingresos',
+                            data: [4000, 3000, 2000, 2780, 1890, 2390],
+                            backgroundColor: COLORS[0],
+                            borderColor: COLORS[0],
+                            borderWidth: 1,
+                        },
+                        {
+                            label: 'Egresos',
+                            data: [2400, 1398, 9800, 3908, 4800, 3800],
+                            backgroundColor: COLORS[1],
+                            borderColor: COLORS[1],
+                            borderWidth: 1,
+                        }
+                    ]
+                };
+                // Datos para el gráfico de Alertas IA y Visitas (Chart.js compatible)
+                const adminTrafficData = {
+                    labels: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio'],
+                    datasets: [
+                        {
+                            label: 'Alertas IA',
+                            data: [150, 200, 120, 300, 250, 180],
+                            borderColor: COLORS[2],
+                            tension: 0.4,
+                            fill: false,
+                        },
+                        {
+                            label: 'Visitas Registradas',
+                            data: [800, 900, 700, 1200, 1000, 950],
+                            borderColor: COLORS[3],
+                            tension: 0.4,
+                            fill: false,
+                        }
+                    ]
+                };
+                // Datos para el gráfico de Tipos de Alerta (Chart.js compatible)
+                const adminAlertTypeData = {
+                    labels: ['Intrusión', 'Merodeo', 'Objeto Abandonado', 'Activación Botón Pánico', 'Otros Eventos'],
+                    datasets: [
+                        {
+                            data: [400, 300, 300, 200, 100],
+                            backgroundColor: COLORS.slice(0, 5),
+                            borderColor: '#ffffff',
+                            borderWidth: 2,
+                        }
+                    ]
+                };
+
+
+                const handleLogin = (e) => {
+                    e.preventDefault();
+                    if (username === 'resident' && password === 'password') {
+                        setIsLoggedIn(true);
+                        setUserRole('resident');
+                        setActiveSection('dashboard');
+                    } else if (username === 'admin' && password === 'adminpass') {
+                        setIsLoggedIn(true);
+                        setUserRole('admin');
+                        setActiveSection('dashboard');
+                    } else {
+                        alert('Credenciales incorrectas. Intenta de nuevo.');
+                    }
+                };
+
+                const handleLogout = () => {
+                    setIsLoggedIn(false);
+                    setUsername('');
+                    setPassword('');
+                    setUserRole('');
+                    setActiveSection('dashboard');
+                };
+
+                const handleAddVisit = (e) => {
+                    e.preventDefault();
+                    const visitorName = e.target.visitorName.value;
+                    const visitorDNI = e.target.visitorDNI.value;
+                    const visitDate = e.target.visitDate.value;
+                    const visitTime = e.target.visitTime.value;
+                    const qrData = `Visitante: ${visitorName}, DNI: ${visitorDNI}, Fecha: ${visitDate} ${visitTime}`;
+                    const pinCode = Math.floor(1000 + Math.random() * 9000);
+
+                    setVisits([...visits, { visitorName, visitorDNI, visitDate, visitTime, qrData, pinCode, status: 'Pendiente' }]);
+                    e.target.reset();
+                    alert(`Visita de ${visitorName} precargada. Ver QR en la tabla.`);
+                    // Simulate activity log entry
+                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Gestión', description: `Visita precargada para ${visitorName}.`, icon: 'fas fa-user-plus', color: 'text-blue-500' }, ...prev]);
+                };
+
+                const handleAddProgrammedAccess = (e) => {
+                    e.preventDefault();
+                    const visitorName = e.target.progVisitorName.value;
+                    const accessStartDate = e.target.progStartDate.value;
+                    const accessEndDate = e.target.progEndDate.value;
+                    const accessType = e.target.progAccessType.value;
+                    const tempCode = `${accessType.substring(0,3).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+                    setVisits(prevVisits => prevVisits.map(v => v.id === 0 ? {...v, tempCode} : v)); // Esto no hace nada util
+                    setVisits(prevVisits => [...prevVisits, { id: Date.now(), visitorName, accessStartDate, accessEndDate, accessType, tempCode, status: 'Programado' }]);
+                    e.target.reset();
+                    alert(`Acceso programado para ${visitorName} con código temporal: ${tempCode}`);
+                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Gestión', description: `Acceso programado creado para ${visitorName}.`, icon: 'fas fa-calendar-check', color: 'text-indigo-500' }, ...prev]);
+                };
+
+                const handleAddPersonnel = (e) => {
+                    e.preventDefault();
+                    const personnelName = e.target.personnelName.value;
+                    const personnelTask = e.target.personnelTask.value;
+                    const personnelDNI = e.target.personnelDNI.value;
+                    const personnelVehicle = e.target.personnelVehicle?.value || 'N/A';
+                    
+                    setServicePersonnel([...servicePersonnel, { personnelName, personnelTask, personnelDNI, personnelVehicle, status: 'Activo' }]);
+                    e.target.reset();
+                    alert(`Personal de servicio ${personnelName} registrado.`);
+                    // Simulate activity log entry
+                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Gestión', description: `Personal de servicio ${personnelName} registrado.`, icon: 'fas fa-user-tag', color: 'text-green-500' }, ...prev]);
+                };
+
+                const simulateAiSummary = async () => {
+                    const prompt = "Genera un resumen conciso de actividad de seguridad en un barrio cerrado o edificio residencial durante el último mes, destacando eventos clave, eficiencia de la IA y recomendaciones. Máximo 100 palabras.";
+                    const simulatedResponse = {
+                        candidates: [{
+                            content: {
+                                parts: [{
+                                    text: "El último mes mostró una reducción del 15% en incidentes gracias a la IA. La detección de merodeo se optimizó, con 95% de alertas precisas. Se registraron 500 visitas, 80 con precarga por app. Recomendamos reforzar la capacitación en manejo de alertas de drones y revisar el plan de mantenimiento preventivo para cámaras en zonas de alto tráfico para asegurar la continuidad del servicio. La app ha mejorado la fluidez en el ingreso del personal de servicio. Es crucial mantener la redundancia activa."
+                                }]
+                            }
+                        }]
+                    };
+
+                    if (simulatedResponse.candidates && simulatedResponse.candidates.length > 0 &&
+                        simulatedResponse.candidates[0].content && simulatedResponse.candidates[0].content.parts &&
+                        simulatedResponse.candidates[0].content.parts.length > 0) {
+                        const summaryText = simulatedResponse.candidates[0].content.parts[0].text;
+                        document.getElementById('aiSummaryResult').innerText = summaryText;
+                    } else {
+                        document.getElementById('aiSummaryResult').innerText = 'No se pudo generar el resumen de IA en este momento.';
+                    }
+                };
+
+                const handleIncidentUpdate = (id, newStatus) => {
+                    setIncidents(prev => prev.map(inc => inc.id === id ? { ...inc, status: newStatus } : inc));
+                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Gestión', description: `Incidente #${id} actualizado a ${newStatus}.`, icon: 'fas fa-clipboard-check', color: 'text-purple-500' }, ...prev]);
+                };
+
+                const handleAddAnnouncement = (e) => {
+                    e.preventDefault();
+                    const title = e.target.announcementTitle.value;
+                    const content = e.target.announcementContent.value;
+                    setCommunityAnnouncements(prev => [{ id: Date.now(), date: new Date().toISOString().slice(0, 10), title, content }, ...prev]);
+                    e.target.reset();
+                    alert('Comunicado publicado con éxito.');
+                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Comunicado', description: `Nuevo comunicado: "${title}".`, icon: 'fas fa-bullhorn', color: 'text-orange-500' }, ...prev]);
+                };
+
+                const handleMarkPackageAsPickedUp = (id) => {
+                    setPackages(prev => prev.map(pkg => pkg.id === id ? { ...pkg, status: 'Retirado', pickedUp: true } : pkg));
+                    alert('Paquete marcado como retirado.');
+                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Encomienda', description: `Paquete con tracking ${packages.find(p => p.id === id).tracking} retirado.`, icon: 'fas fa-box-check', color: 'text-yellow-600' }, ...prev]);
+                };
+
+                const handleCameraPrivacyToggle = (cameraId) => {
+                    setCameraPrivacySettings(prev => prev.map(cam => 
+                        cam.id === cameraId ? { ...cam, visibleToResidents: !cam.visibleToResidents } : cam
+                    ));
+                    const toggledCam = cameraPrivacySettings.find(cam => cam.id === cameraId);
+                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Ajuste', description: `Visibilidad de cámara "${toggledCam.name}" cambiada a ${toggledCam.visibleToResidents ? 'Deshabilitada' : 'Habilitada'} para residentes.`, icon: 'fas fa-cog', color: 'text-gray-500' }, ...prev]);
+                };
+                
+                const handleSilentEmergencyCall = () => {
+                    if (confirm('¿Está seguro que desea activar la emergencia silenciosa? Esto enviará una alerta discreta a la central de monitoreo.')) {
+                        alert('Alerta silenciosa enviada. La guardia ha sido notificada discretamente.');
+                        setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Emergencia', description: 'Activada emergencia silenciosa. Guardia notificada.', icon: 'fas fa-bell-slash', color: 'text-red-500' }, ...prev]);
+                    }
+                };
+
+
+                useEffect(() => {
+                    if (isLoggedIn && userRole === 'admin' && activeSection === 'reports') {
+                        simulateAiSummary();
+                    }
+                }, [isLoggedIn, userRole, activeSection]);
+
+                if (!isLoggedIn) {
+                    return (
+                        <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+                            <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
+                                <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">Iniciar Sesión en Aura IA Security</h2>
+                                <form onSubmit={handleLogin} className="space-y-4">
+                                    <div>
+                                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="username">
+                                            Usuario
+                                        </label>
+                                        <input
+                                            type="text"
+                                            id="username"
+                                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400"
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
+                                            Contraseña
+                                        </label>
+                                        <input
+                                            type="password"
+                                            id="password"
+                                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200"
+                                    >
+                                        Iniciar Sesión
+                                    </button>
+                                    <p className="text-center text-gray-600 text-sm mt-4">
+                                        <span className="font-semibold">Demo Residente:</span> usuario: resident, pass: password<br />
+                                        <span className="font-semibold">Demo Administrador:</span> usuario: admin, pass: adminpass
+                                    </p>
+                                </form>
+                            </div>
+                        </div>
+                    );
+                }
+
+                return (
+                    <div className="min-h-screen flex bg-gray-50">
+                        {/* Barra lateral para escritorio y móvil */}
+                        <div className={`fixed inset-y-0 left-0 w-64 bg-gray-800 text-white p-4 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 z-40`}>
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-2xl font-bold">Aura IA App</h2>
+                                <button className="md:hidden" onClick={() => setIsSidebarOpen(false)}>
+                                    <i className="fas fa-times text-xl"></i>
+                                </button>
+                            </div>
+                            <nav>
+                                <ul>
+                                    <li className="mb-2">
+                                        <button
+                                            className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'dashboard' ? 'bg-blue-700' : ''}`}
+                                            onClick={() => { setActiveSection('dashboard'); setIsSidebarOpen(false); }}
+                                        >
+                                            <i className="fas fa-home text-lg mr-3"></i> Dashboard
+                                        </button>
+                                    </li>
+                                    {userRole === 'resident' && (
+                                        <>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'visits' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('visits'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-users text-lg mr-3"></i> Gestión de Visitas
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'programmed-access' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('programmed-access'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-calendar-alt text-lg mr-3"></i> Acceso Programado
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'personnel' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('personnel'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-briefcase text-lg mr-3"></i> Personal de Servicio
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'notifications' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('notifications'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-bell text-lg mr-3"></i> Notificaciones
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'live-cameras' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('live-cameras'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-video text-lg mr-3"></i> Cámaras en Vivo
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'activity-log' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('activity-log'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-history text-lg mr-3"></i> Actividad Reciente
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'packages' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('packages'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-box-open text-lg mr-3"></i> Encomiendas
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'community-announcements' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('community-announcements'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-bullhorn text-lg mr-3"></i> Comunicados
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'history' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('history'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-clipboard-list text-lg mr-3"></i> Historial (Archivado)
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'contact' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('contact'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-comments text-lg mr-3"></i> Contactar Guardia
+                                                </button>
+                                            </li>
+                                        </>
+                                    )}
+                                    {userRole === 'admin' && (
+                                        <>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'reports' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('reports'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-chart-bar text-lg mr-3"></i> Reportes
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'incident-management' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('incident-management'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-exclamation-triangle text-lg mr-3"></i> Gestión de Incidentes
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'community-announcements' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('community-announcements'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-bullhorn text-lg mr-3"></i> Comunicados Comunidad
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'payments' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('payments'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-wallet text-lg mr-3"></i> Pagos
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'activity-log' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('activity-log'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-history text-lg mr-3"></i> Actividad Reciente
+                                                </button>
+                                            </li>
+                                            <li className="mb-2">
+                                                <button
+                                                    className={`flex items-center w-full p-3 rounded-lg hover:bg-gray-700 transition duration-200 ${activeSection === 'settings' ? 'bg-blue-700' : ''}`}
+                                                    onClick={() => { setActiveSection('settings'); setIsSidebarOpen(false); }}
+                                                >
+                                                    <i className="fas fa-cog text-lg mr-3"></i> Ajustes
+                                                </button>
+                                            </li>
+                                        </>
+                                    )}
+                                    <li className="mt-6">
+                                        <button
+                                            className="flex items-center w-full p-3 rounded-lg bg-red-600 hover:bg-red-700 transition duration-200"
+                                            onClick={handleLogout}
+                                        >
+                                            <i className="fas fa-sign-out-alt text-lg mr-3"></i> Cerrar Sesión
+                                        </button>
+                                    </li>
+                                </ul>
+                            </nav>
+                        </div>
+
+                        {/* Contenido principal */}
+                        <div className="flex-1 md:ml-64 p-4 sm:p-6 lg:p-8">
+                            {/* Encabezado móvil para alternar la barra lateral */}
+                            <header className="bg-white shadow p-4 md:hidden flex justify-between items-center mb-6 rounded-lg">
+                                <button onClick={() => setIsSidebarOpen(true)}>
+                                    <i className="fas fa-bars text-xl"></i>
+                                </button>
+                                <h1 className="text-xl font-bold text-gray-800">Aura IA Security</h1>
+                                <div className="w-6"></div>
+                            </header>
+
+                            {activeSection === 'dashboard' && (
+                                <Dashboard userRole={userRole} username={username} visits={visits} servicePersonnel={servicePersonnel} adminReportData={adminReportData} adminTrafficData={adminTrafficData} />
+                            )}
+                            {userRole === 'resident' && activeSection === 'visits' && (
+                                <VisitManagement onAddVisit={handleAddVisit} visits={visits} />
+                            )}
+                             {userRole === 'resident' && activeSection === 'programmed-access' && (
+                                <ProgrammedAccessManagement onAddProgrammedAccess={handleAddProgrammedAccess} visits={visits} />
+                            )}
+                            {userRole === 'resident' && activeSection === 'personnel' && (
+                                <ServicePersonnelManagement onAddPersonnel={handleAddPersonnel} servicePersonnel={servicePersonnel} />
+                            )}
+                            {userRole === 'resident' && activeSection === 'notifications' && (
+                                <Notifications notifications={notifications} />
+                            )}
+                            {userRole === 'resident' && activeSection === 'live-cameras' && (
+                                <LiveCameras />
+                            )}
+                             {activeSection === 'activity-log' && (
+                                <ActivityLog activityLog={activityLog} />
+                            )}
+                            {userRole === 'resident' && activeSection === 'packages' && (
+                                <PackageManagement packages={packages} onMarkPickedUp={handleMarkPackageAsPickedUp} />
+                            )}
+                            {userRole === 'resident' && activeSection === 'community-announcements' && (
+                                <CommunityAnnouncements announcements={communityAnnouncements} />
+                            )}
+                            {userRole === 'resident' && activeSection === 'history' && (
+                                <History visits={visits} servicePersonnel={servicePersonnel} />
+                            )}
+                            {userRole === 'resident' && activeSection === 'contact' && (
+                                <ContactGuard handleSilentEmergencyCall={handleSilentEmergencyCall} />
+                            )}
+                            {userRole === 'admin' && activeSection === 'reports' && (
+                                <AdminReports
+                                    adminReportData={adminReportData}
+                                    adminTrafficData={adminTrafficData}
+                                    adminAlertTypeData={adminAlertTypeData}
+                                    simulateAiSummary={simulateAiSummary}
+                                />
+                            )}
+                            {userRole === 'admin' && activeSection === 'incident-management' && (
+                                <IncidentManagement incidents={incidents} onUpdateIncident={handleIncidentUpdate} />
+                            )}
+                            {userRole === 'admin' && activeSection === 'community-announcements' && (
+                                <AdminCommunityAnnouncements announcements={communityAnnouncements} onAddAnnouncement={handleAddAnnouncement} />
+                            )}
+                            {userRole === 'admin' && activeSection === 'payments' && (
+                                <AdminPayments />
+                            )}
+                            {userRole === 'admin' && activeSection === 'settings' && (
+                                <AdminSettings cameraPrivacySettings={cameraPrivacySettings} onCameraPrivacyToggle={handleCameraPrivacyToggle} />
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            function Dashboard({ userRole, username, visits, servicePersonnel, adminReportData, adminTrafficData }) {
+                const totalVisitsToday = visits.filter(v => v.visitDate === new Date().toISOString().slice(0, 10)).length;
+                const totalPersonnelActive = servicePersonnel.length;
+                // Verificar que adminReportData.datasets[0] existe antes de intentar acceder a .data
+                const totalIngresosLastMonth = adminReportData.datasets[0] ? adminReportData.datasets[0].data.reduce((sum, val) => sum + val, 0) : 0; 
+                // Verificar que adminTrafficData.datasets[0] existe antes de intentar acceder a .data
+                const totalAlertasIALastMonth = adminTrafficData.datasets[0] ? adminTrafficData.datasets[0].data.reduce((sum, val) => sum + val, 0) : 0; 
+
+                return (
+                    <div className="section-container">
+                        <h1 className="text-3xl font-bold text-gray-800 mb-6">Bienvenido, {username}!</h1>
+                        {userRole === 'resident' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="bg-blue-100 p-6 rounded-lg shadow-sm flex items-center space-x-4">
+                                    <i className="fas fa-calendar-alt text-4xl text-blue-600"></i>
+                                    <div>
+                                        <p className="text-xl font-semibold text-gray-700">Visitas Pendientes</p>
+                                        <p className="text-3xl font-bold text-blue-800">{visits.filter(v => v.status === 'Pendiente').length}</p>
+                                    </div>
+                                </div>
+                                <div className="bg-green-100 p-6 rounded-lg shadow-sm flex items-center space-x-4">
+                                    <i className="fas fa-check-circle text-4xl text-green-600"></i>
+                                    <div>
+                                        <p className="text-xl font-semibold text-gray-700">Personal Activo</p>
+                                        <p className="text-3xl font-bold text-green-800">{totalPersonnelActive}</p>
+                                    </div>
+                                </div>
+                                <div className="bg-yellow-100 p-6 rounded-lg shadow-sm flex items-center space-x-4">
+                                    <i className="fas fa-bell text-4xl text-yellow-600"></i>
+                                    <div>
+                                        <p className="text-xl font-semibold text-gray-700">Notificaciones Nuevas</p>
+                                        <p className="text-3xl font-bold text-yellow-800">5</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {userRole === 'admin' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="bg-blue-100 p-6 rounded-lg shadow-sm flex items-center space-x-4">
+                                    <i className="fas fa-chart-bar text-4xl text-blue-600"></i>
+                                    <div>
+                                        <p className="text-xl font-semibold text-gray-700">Total Ingresos (Último Mes)</p>
+                                        <p className="text-3xl font-bold text-blue-800">{totalIngresosLastMonth.toLocaleString()}</p>
+                                    </div>
+                                </div>
+                                <div className="bg-green-100 p-6 rounded-lg shadow-sm flex items-center space-x-4">
+                                    <i className="fas fa-users text-4xl text-green-600"></i>
+                                    <div>
+                                        <p className="text-xl font-semibold text-gray-700">Clientes Activos</p>
+                                        <p className="text-3xl font-bold text-green-800">60</p>
+                                    </div>
+                                </div>
+                                <div className="bg-red-100 p-6 rounded-lg shadow-sm flex items-center space-x-4">
+                                    <i className="fas fa-shield-alt text-4xl text-red-600"></i>
+                                    <div>
+                                        <p className="text-xl font-semibold text-gray-700">Alertas IA (Último Mes)</p>
+                                        <p className="text-3xl font-bold text-red-800">{totalAlertasIALastMonth.toLocaleString()}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            // Componente para mostrar el QR
+            function QrCodeDisplay({ qrData }) {
+                const qrRef = useRef();
+
+                useEffect(() => {
+                    if (qrRef.current && typeof QRCode !== 'undefined') {
+                        qrRef.current.innerHTML = ''; // Limpiar QR anterior
+                        new QRCode(qrRef.current, {
+                            text: qrData,
+                            width: 90,
+                            height: 90,
+                            colorDark : "#3182ce",
+                            colorLight : "#ffffff",
+                            correctLevel : QRCode.CorrectLevel.H
+                        });
+                    } else if (typeof QRCode === 'undefined') {
+                        console.error("Librería QRCode no cargada. No se puede generar el QR.");
+                    }
+                }, [qrData]);
+
+                return <div ref={qrRef} className="p-2 border border-blue-200 rounded-md bg-white"></div>;
+            }
+
+            function VisitManagement({ handleAddVisit, visits }) {
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Gestión de Visitas (Entrada Única)</h2>
+
+                        <div className="mb-8 p-6 bg-gray-50 rounded-lg shadow-sm">
+                            <h3 className="text-2xl font-semibold text-gray-700 mb-4">Registrar Nueva Visita</h3>
+                            <form onSubmit={handleAddVisit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="visitorName">
+                                        Nombre Visitante
+                                    </label>
+                                    <input type="text" id="visitorName" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="visitorDNI">
+                                        DNI Visitante
+                                    </label>
+                                    <input type="text" id="visitorDNI" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="visitDate">
+                                        Fecha de Visita
+                                    </label>
+                                    <input type="date" id="visitDate" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="visitTime">
+                                        Hora Estimada
+                                    </label>
+                                    <input type="time" id="visitTime" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200">
+                                        Registrar Visita
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <h3 className="text-2xl font-semibold text-gray-700 mb-4">Visitas Pendientes/Activas</h3>
+                        {visits.filter(v => v.accessType === undefined).length === 0 ? ( // Only show single visits
+                            <p className="text-gray-600">No hay visitas de entrada única registradas.</p>
+                        ) : (
+                            <div className="table-container">
+                                <table className="min-w-full bg-white rounded-lg shadow-sm">
+                                    <thead>
+                                        <tr className="table-header">
+                                            <th className="py-3 px-6 text-left">Visitante</th>
+                                            <th className="py-3 px-6 text-left">DNI</th>
+                                            <th className="py-3 px-6 text-left">Fecha/Hora</th>
+                                            <th className="py-3 px-6 text-left">QR / PIN</th>
+                                            <th className="py-3 px-6 text-left">Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-gray-600 text-sm font-light">
+                                        {visits.filter(v => v.accessType === undefined).map((visit, index) => ( // Only show single visits
+                                            <tr key={index} className="border-b border-gray-200 table-row-hover">
+                                                <td className="py-3 px-6 text-left whitespace-nowrap">{visit.visitorName}</td>
+                                                <td className="py-3 px-6 text-left">{visit.visitorDNI}</td>
+                                                <td className="py-3 px-6 text-left">{visit.visitDate} {visit.visitTime}</td>
+                                                <td className="py-3 px-6 text-left">
+                                                    <div className="flex items-center gap-2">
+                                                        <span>{visit.pinCode}</span>
+                                                        {/* Renderiza el QR si hay datos QR */}
+                                                        {visit.qrData && <QrCodeDisplay qrData={visit.qrData} />}
+                                                    </div>
+                                                </td>
+                                                <td className="py-3 px-6 text-left">
+                                                    <span className={`py-1 px-3 rounded-full text-xs font-semibold ${visit.status === 'Pendiente' ? 'bg-yellow-200 text-yellow-700' : 'bg-green-200 text-green-700'}`}>
+                                                        {visit.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            function ProgrammedAccessManagement({ onAddProgrammedAccess, visits }) {
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Gestión de Acceso Programado</h2>
+
+                        <div className="mb-8 p-6 bg-gray-50 rounded-lg shadow-sm">
+                            <h3 className="text-2xl font-semibold text-gray-700 mb-4">Crear Acceso Programado (QR/PIN Temporal)</h3>
+                            <form onSubmit={onAddProgrammedAccess} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="progVisitorName">
+                                        Nombre Visitante/Personal
+                                    </label>
+                                    <input type="text" id="progVisitorName" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="progAccessType">
+                                        Tipo de Acceso
+                                    </label>
+                                    <select id="progAccessType" className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required>
+                                        <option value="">Seleccionar...</option>
+                                        <option value="Visita Recurrente">Visita Recurrente</option>
+                                        <option value="Mantenimiento">Mantenimiento</option>
+                                        <option value="Limpieza">Limpieza</option>
+                                        <option value="Delivery">Delivery</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="progStartDate">
+                                        Fecha Inicio
+                                    </label>
+                                    <input type="date" id="progStartDate" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="progEndDate">
+                                        Fecha Fin
+                                    </label>
+                                    <input type="date" id="progEndDate" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200">
+                                        Generar Código Temporal
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <h3 className="text-2xl font-semibold text-gray-700 mb-4">Accesos Programados</h3>
+                        {visits.filter(v => v.accessType !== undefined).length === 0 ? ( // Only show programmed visits
+                            <p className="text-gray-600">No hay accesos programados registrados.</p>
+                        ) : (
+                            <div className="table-container">
+                                <table className="min-w-full bg-white rounded-lg shadow-sm">
+                                    <thead>
+                                        <tr className="table-header">
+                                            <th className="py-3 px-6 text-left">Visitante/Personal</th>
+                                            <th className="py-3 px-6 text-left">Tipo</th>
+                                            <th className="py-3 px-6 text-left">Período</th>
+                                            <th className="py-3 px-6 text-left">Código Temporal</th>
+                                            <th className="py-3 px-6 text-left">Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-gray-600 text-sm font-light">
+                                        {visits.filter(v => v.accessType !== undefined).map((visit, index) => ( // Only show programmed visits
+                                            <tr key={index} className="border-b border-gray-200 table-row-hover">
+                                                <td className="py-3 px-6 text-left whitespace-nowrap">{visit.visitorName}</td>
+                                                <td className="py-3 px-6 text-left">{visit.accessType}</td>
+                                                <td className="py-3 px-6 text-left">{visit.accessStartDate} a {visit.accessEndDate}</td>
+                                                <td className="py-3 px-6 text-left font-mono text-blue-700">{visit.tempCode}</td>
+                                                <td className="py-3 px-6 text-left">
+                                                    <span className={`py-1 px-3 rounded-full text-xs font-semibold ${new Date(visit.accessEndDate) < new Date() ? 'bg-red-200 text-red-700' : 'bg-green-200 text-green-700'}`}>
+                                                        {new Date(visit.accessEndDate) < new Date() ? 'Expirado' : 'Activo'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            function ServicePersonnelManagement({ onAddPersonnel, servicePersonnel }) {
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Gestión de Personal de Servicio</h2>
+
+                        <div className="mb-8 p-6 bg-gray-50 rounded-lg shadow-sm">
+                            <h3 className="text-2xl font-semibold text-gray-700 mb-4">Registrar Nuevo Personal</h3>
+                            <form onSubmit={onAddPersonnel} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="personnelName">
+                                        Nombre Completo
+                                    </label>
+                                    <input type="text" id="personnelName" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="personnelTask">
+                                        Tarea/Función
+                                    </label>
+                                    <input type="text" id="personnelTask" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="personnelDNI">
+                                        DNI
+                                    </label>
+                                    <input type="text" id="personnelDNI" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="personnelVehicle">
+                                        Patente Vehículo (Opcional)
+                                    </label>
+                                    <input type="text" id="personnelVehicle" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200">
+                                        Registrar Personal
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <h3 className="text-2xl font-semibold text-gray-700 mb-4">Personal Registrado</h3>
+                        {servicePersonnel.length === 0 ? (
+                            <p className="text-gray-600">No hay personal de servicio registrado.</p>
+                        ) : (
+                            <div className="table-container">
+                                <table className="min-w-full bg-white rounded-lg shadow-sm">
+                                    <thead>
+                                        <tr className="table-header">
+                                            <th className="py-3 px-6 text-left">Nombre</th>
+                                            <th className="py-3 px-6 text-left">Tarea</th>
+                                            <th className="py-3 px-6 text-left">DNI</th>
+                                            <th className="py-3 px-6 text-left">Patente</th>
+                                            <th className="py-3 px-6 text-left">Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-gray-600 text-sm font-light">
+                                        {servicePersonnel.map((person, index) => (
+                                            <tr key={index} className="border-b border-gray-200 table-row-hover">
+                                                <td className="py-3 px-6 text-left whitespace-nowrap">{person.personnelName}</td>
+                                                <td className="py-3 px-6 text-left">{person.personnelTask}</td>
+                                                <td className="py-3 px-6 text-left">{person.personnelDNI}</td>
+                                                <td className="py-3 px-6 text-left">{person.personnelVehicle}</td>
+                                                <td className="py-3 px-6 text-left">
+                                                    <span className="bg-green-200 text-green-700 py-1 px-3 rounded-full text-xs font-semibold">
+                                                        {person.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            function Notifications({ notifications }) {
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Notificaciones</h2>
+                        {notifications.length === 0 ? (
+                            <p className="text-gray-600">No hay notificaciones nuevas.</p>
+                        ) : (
+                            <div className="space-y-4">
+                                {notifications.map(notif => (
+                                    <div key={notif.id} className={`p-4 rounded-lg shadow-sm ${notif.type === 'alert' ? 'bg-red-100 border-red-400' : 'bg-blue-100 border-blue-400'} border-l-4`}>
+                                        <p className="font-semibold text-gray-800">{notif.message}</p>
+                                        <span className="text-sm text-gray-600">Hace 5 minutos</span> {/* Simulada */}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            function LiveCameras() {
+                const [selectedCamera, setSelectedCamera] = useState('cam1');
+                const cameraOptions = [
+                    { id: 'cam1', name: 'Ingreso Principal', icon: 'fas fa-door-open' },
+                    { id: 'cam2', name: 'Perímetro Norte', icon: 'fas fa-map-marker-alt' },
+                    { id: 'cam3', name: 'Ascensor #1', icon: 'fas fa-elevator' },
+                    { id: 'cam4', name: 'Estacionamiento', icon: 'fas fa-parking' },
+                    { id: 'cam5', name: 'Garita de Acceso 1 (Country)', icon: 'fas fa-road' },
+                    { id: 'cam6', name: 'Perímetro Este (Country)', icon: 'fas fa-tree' },
+                    { id: 'cam7', name: 'Vista de Dron #1 (Country)', icon: 'fas fa-drone' },
+                ];
+
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Cámaras en Vivo</h2>
+                        <p className="text-gray-600 mb-4">
+                            Aquí podrás visualizar las transmisiones en vivo de las cámaras de tu edificio o barrio.
+                            En un sistema real, esta funcionalidad requiere una infraestructura de streaming de video segura y robusta,
+                            y una integración directa con el sistema VMS de Aura IA Security.
+                        </p>
+                        
+                        <div className="mb-4">
+                            <label htmlFor="camera-select" className="block text-gray-700 text-sm font-bold mb-2">Seleccionar Cámara:</label>
+                            <select 
+                                id="camera-select" 
+                                className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400"
+                                value={selectedCamera}
+                                onChange={(e) => setSelectedCamera(e.target.value)}
+                            >
+                                {cameraOptions.map(cam => (
+                                    <option key={cam.id} value={cam.id}>{cam.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="video-feed-placeholder">
+                            <i className={`${cameraOptions.find(c => c.id === selectedCamera)?.icon} text-6xl opacity-50 absolute`}></i>
+                            <p>{cameraOptions.find(c => c.id === selectedCamera)?.name} - Transmisión en Vivo (Simulado)</p>
+                        </div>
+                        
+                        <p className="text-sm text-gray-500 mt-6">
+                            (La visualización de cámaras en vivo está restringida y disponible para usuarios autorizados según las configuraciones de seguridad de su propiedad. Las imágenes son simuladas para esta demostración.)
+                        </p>
+                    </div>
+                );
+            }
+
+            function ActivityLog({ activityLog }) {
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Actividad Reciente / Log de Eventos</h2>
+                        <p className="text-gray-600 mb-4">
+                            Aquí puedes ver un registro en tiempo real de todos los eventos de seguridad y actividades relevantes en tu propiedad,
+                            monitoreados por Aura IA Security.
+                        </p>
+                        <div className="space-y-3 bg-gray-50 p-4 rounded-lg shadow-sm h-96 overflow-y-auto">
+                            {activityLog.length === 0 ? (
+                                <p className="text-gray-600 text-center mt-8">No hay eventos recientes.</p>
+                            ) : (
+                                activityLog.map(event => (
+                                    <div key={event.id} className="flex items-start space-x-3 p-3 border-b border-gray-200 last:border-b-0">
+                                        <i className={`${event.icon} text-xl ${event.color} mt-1`}></i>
+                                        <div>
+                                            <p className="text-gray-800 font-semibold text-lg">{event.type} <span className="text-gray-500 font-normal text-sm ml-2">{event.time}</span></p>
+                                            <p className="text-gray-700 text-base">{event.description}</p>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                        <p className="text-sm text-gray-500 mt-4">
+                            (Este log muestra eventos simulados. En un entorno real, sería un registro detallado de accesos, alertas de IA, activaciones de drones, etc.)
+                        </p>
+                    </div>
+                );
+            }
+
+            function PackageManagement({ packages, onMarkPickedUp }) {
+                const handleMarkAsPickedUpClick = (id) => {
+                    onMarkPickedUp(id);
+                };
+
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Gestión de Encomiendas</h2>
+                        <p className="text-gray-600 mb-4">
+                            Recibe notificaciones cuando tus paquetes lleguen y gestiona su retiro.
+                            (Esta sección simula la integración con un sistema de lockers o recepción de paquetería.)
+                        </p>
+                        {packages.length === 0 ? (
+                            <p className="text-gray-600">No hay encomiendas registradas.</p>
+                        ) : (
+                            <div className="table-container">
+                                <table className="min-w-full bg-white rounded-lg shadow-sm">
+                                    <thead>
+                                        <tr className="table-header">
+                                            <th className="py-3 px-6 text-left">Remitente</th>
+                                            <th className="py-3 px-6 text-left">Fecha Llegada</th>
+                                            <th className="py-3 px-6 text-left">Tracking ID</th>
+                                            <th className="py-3 px-6 text-left">Estado</th>
+                                            <th className="py-3 px-6 text-left">Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-gray-600 text-sm font-light">
+                                        {packages.map((pkg) => (
+                                            <tr key={pkg.id} className="border-b border-gray-200 table-row-hover">
+                                                <td className="py-3 px-6 text-left whitespace-nowrap">{pkg.sender}</td>
+                                                <td className="py-3 px-6 text-left">{pkg.date}</td>
+                                                <td className="py-3 px-6 text-left">{pkg.tracking}</td>
+                                                <td className="py-3 px-6 text-left">
+                                                    <span className={`py-1 px-3 rounded-full text-xs font-semibold ${pkg.status === 'En Locker' ? 'bg-yellow-200 text-yellow-700' : 'bg-green-200 text-green-700'}`}>
+                                                        {pkg.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-6 text-left">
+                                                    {!pkg.pickedUp && (
+                                                        <button 
+                                                            onClick={() => handleMarkAsPickedUpClick(pkg.id)}
+                                                            className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1 rounded-full transition duration-200"
+                                                        >
+                                                            Marcar como Retirado
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            function CommunityAnnouncements({ announcements }) {
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Comunicados de la Comunidad</h2>
+                        <p className="text-gray-600 mb-4">
+                            Mantente informado con los avisos importantes de la administración de tu consorcio o barrio.
+                        </p>
+                        {announcements.length === 0 ? (
+                            <p className="text-gray-600">No hay comunicados recientes.</p>
+                        ) : (
+                            <div className="space-y-4">
+                                {announcements.map(announcement => (
+                                    <div key={announcement.id} className="p-4 bg-gray-50 rounded-lg shadow-sm border-l-4 border-blue-400">
+                                        <p className="font-semibold text-gray-800 text-lg mb-1">{announcement.title}</p>
+                                        <p className="text-gray-700 text-base">{announcement.content}</p>
+                                        <span className="text-sm text-gray-500 block mt-2">Publicado: {announcement.date}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+            
+            function History({ visits, servicePersonnel }) {
+                const allEntries = [
+                    ...visits.map(v => ({ ...v, type: 'Visita', timestamp: `${v.visitDate}T${v.visitTime || '00:00'}` })),
+                    ...servicePersonnel.map(p => ({ ...p, type: 'Personal de Servicio', timestamp: new Date().toISOString().slice(0, 16) }))
+                ].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Historial de Ingresos/Egresos</h2>
+                        <p className="text-gray-600 mb-4">
+                            Este historial contiene registros archivados de ingresos y egresos de visitantes y personal, así como eventos de seguridad importantes.
+                        </p>
+                        {allEntries.length === 0 ? (
+                            <p className="text-gray-600">No hay registros en el historial.</p>
+                        ) : (
+                            <div className="table-container">
+                                <table className="min-w-full bg-white rounded-lg shadow-sm">
+                                    <thead>
+                                    <tr className="table-header">
+                                        <th className="py-3 px-6 text-left">Tipo</th>
+                                        <th className="py-3 px-6 text-left">Nombre</th>
+                                        <th className="py-3 px-6 text-left">DNI</th>
+                                        <th className="py-3 px-6 text-left">Detalles</th>
+                                        <th className="py-3 px-6 text-left">Fecha/Hora</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody className="text-gray-600 text-sm font-light">
+                                    {allEntries.map((entry, index) => (
+                                        <tr key={index} className="border-b border-gray-200 table-row-hover">
+                                            <td className="py-3 px-6 text-left whitespace-nowrap">{entry.type}</td>
+                                            <td className="py-3 px-6 text-left">{entry.visitorName || entry.personnelName}</td>
+                                            <td className="py-3 px-6 text-left">{entry.visitorDNI || entry.personnelDNI}</td>
+                                            <td className="py-3 px-6 text-left">
+                                                {entry.type === 'Visita' && `QR: ${entry.qrCode}, PIN: ${entry.pinCode}`}
+                                                {entry.type === 'Personal de Servicio' && `Tarea: ${entry.personnelTask}, Patente: ${entry.personnelVehicle}`}
+                                            </td>
+                                            <td className="py-3 px-6 text-left">{new Date(entry.timestamp).toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            function ContactGuard({ handleSilentEmergencyCall }) { // Agregada prop handleSilentEmergencyCall
+                const [message, setMessage] = useState('');
+                const [chatHistory, setChatHistory] = useState([]);
+                const [emergencyActive, setEmergencyActive] = useState(false);
+
+                const handleSendMessage = (e) => {
+                    e.preventDefault();
+                    if (message.trim()) {
+                        setChatHistory([...chatHistory, { type: 'user', text: message }]);
+                        setMessage('');
+                        setTimeout(() => {
+                            setChatHistory(prev => [...prev, { type: 'guard', text: 'Recibido. ¿En qué puedo ayudarte?' }]);
+                        }, 1000);
+                    }
+                };
+
+                const handleCallGuard = () => {
+                    alert('Llamando a la central de monitoreo de Aura IA Security... Por favor, espere.');
+                    setTimeout(() => {
+                        setChatHistory(prev => [...prev, { type: 'system', text: 'Conectado con la central. Un guardia atenderá en breve.' }]);
+                    }, 1500);
+                };
+
+                const handleEmergencyCall = () => {
+                    if (confirm('¿Está seguro que desea activar el botón de emergencia? Esto enviará una alerta inmediata a la central de monitoreo y creará un ticket de alta prioridad.')) {
+                        setEmergencyActive(true);
+                        setChatHistory(prev => [...prev, { type: 'system', text: '¡ALERTA DE EMERGENCIA ACTIVADA! La guardia ha sido notificada y está evaluando la situación. Se ha generado un ticket de soporte #EMERGENCIA-001. Mantenga la calma.' }]);
+                        setTimeout(() => {
+                            setChatHistory(prev => [...prev, { type: 'guard', text: 'Alerta recibida. Estamos monitoreando su ubicación y cámara. Un operador se pondrá en contacto o se enviará personal. Manténgase en línea si es seguro.' }]);
+                        }, 2000);
+                    }
+                };
+
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Contactar Guardia / Soporte</h2>
+                        <p className="text-gray-600 mb-4">
+                            Utiliza este chat para consultas generales o los botones de emergencia para situaciones críticas.
+                            Todas las interacciones y alertas quedan registradas para seguimiento.
+                        </p>
+                        <div className="space-y-4">
+                            <div className="chat-area">
+                                {chatHistory.length === 0 ? (
+                                    <p className="text-gray-500 text-center mt-8">Envía un mensaje para iniciar el chat con la guardia.</p>
+                                ) : (
+                                    chatHistory.map((msg, index) => (
+                                        <div key={index} className={`flex ${msg.type === 'user' ? 'justify-end' : (msg.type === 'guard' ? 'justify-start' : 'justify-center')} mb-2`}>
+                                            <div className={`p-2 rounded-lg text-sm max-w-[70%] ${
+                                                msg.type === 'user' ? 'message-bubble-user' : 
+                                                (msg.type === 'guard' ? 'message-bubble-guard' : 'message-bubble-system')
+                                            }`}>
+                                                {msg.text}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                            <form onSubmit={handleSendMessage} className="flex space-x-2">
+                                <input
+                                    type="text"
+                                    className="flex-1 shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400"
+                                    placeholder="Escribe tu mensaje..."
+                                    value={message}
+                                    onChange={(e) => setMessage(e.target.value)}
+                                    disabled={emergencyActive}
+                                />
+                                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200" disabled={emergencyActive}>
+                                    Enviar
+                                </button>
+                            </form>
+                            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mt-4">
+                                <button 
+                                    onClick={handleCallGuard} 
+                                    className="w-full sm:w-1/3 bg-blue-700 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200"
+                                    disabled={emergencyActive}
+                                >
+                                    <i className="fas fa-phone mr-2"></i> Llamar al Guardia
+                                </button>
+                                <button 
+                                    onClick={handleSilentEmergencyCall} // Nuevo botón para emergencia silenciosa
+                                    className="w-full sm:w-1/3 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200"
+                                    disabled={emergencyActive}
+                                >
+                                    <i className="fas fa-bell-slash mr-2"></i> Emergencia Silenciosa
+                                </button>
+                                <button 
+                                    onClick={handleEmergencyCall} 
+                                    className={`w-full sm:w-1/3 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200 ${emergencyActive ? 'bg-red-800 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white'}`}
+                                    disabled={emergencyActive}
+                                >
+                                    <i className="fas fa-exclamation-triangle mr-2"></i> Botón de Emergencia / Pánico
+                                </button>
+                            </div>
+                            <p className="text-sm text-gray-500 text-center mt-2">
+                                (Al presionar el botón de emergencia se enviará una alerta prioritaria a la guardia con su ubicación y video si es posible. Se creará un ticket de soporte interno.)
+                            </p>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Componente para administradores: Gestión de Incidentes
+            function IncidentManagement({ incidents, onUpdateIncident }) {
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Gestión de Incidentes</h2>
+                        <p className="text-gray-600 mb-4">
+                            Monitorea y gestiona todos los incidentes de seguridad reportados en tus propiedades.
+                        </p>
+                        {incidents.length === 0 ? (
+                            <p className="text-gray-600">No hay incidentes registrados.</p>
+                        ) : (
+                            <div className="table-container">
+                                <table className="min-w-full bg-white rounded-lg shadow-sm">
+                                    <thead>
+                                        <tr className="table-header">
+                                            <th className="py-3 px-6 text-left">ID</th>
+                                            <th className="py-3 px-6 text-left">Fecha/Hora</th>
+                                            <th className="py-3 px-6 text-left">Tipo</th>
+                                            <th className="py-3 px-6 text-left">Prioridad</th>
+                                            <th className="py-3 px-6 text-left">Estado</th>
+                                            <th className="py-3 px-6 text-left">Descripción</th>
+                                            <th className="py-3 px-6 text-left">Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-gray-600 text-sm font-light">
+                                        {incidents.map(incident => (
+                                            <tr key={incident.id} className="border-b border-gray-200 table-row-hover">
+                                                <td className="py-3 px-6 text-left">{incident.id}</td>
+                                                <td className="py-3 px-6 text-left">{incident.date} {incident.time}</td>
+                                                <td className="py-3 px-6 text-left">{incident.type}</td>
+                                                <td className="py-3 px-6 text-left">
+                                                    <span className={`py-1 px-3 rounded-full text-xs font-semibold ${incident.priority === 'Urgente' ? 'bg-red-200 text-red-700' : 'bg-yellow-200 text-yellow-700'}`}>
+                                                        {incident.priority}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-6 text-left">
+                                                    <span className={`py-1 px-3 rounded-full text-xs font-semibold ${incident.status === 'Cerrado' ? 'bg-green-200 text-green-700' : 'bg-orange-200 text-orange-700'}`}>
+                                                        {incident.status}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-6 text-left">{incident.description}</td>
+                                                <td className="py-3 px-6 text-left">
+                                                    {incident.status !== 'Cerrado' && (
+                                                        <button 
+                                                            onClick={() => onUpdateIncident(incident.id, 'Cerrado')}
+                                                            className="bg-green-500 hover:bg-green-600 text-white text-xs px-3 py-1 rounded-full transition duration-200"
+                                                        >
+                                                            Cerrar
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            // Componente para administradores: Publicación de Comunicados
+            function AdminCommunityAnnouncements({ announcements, onAddAnnouncement }) {
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Publicar Comunicados</h2>
+                        
+                        <div className="mb-8 p-6 bg-gray-50 rounded-lg shadow-sm">
+                            <h3 className="text-2xl font-semibold text-gray-700 mb-4">Crear Nuevo Comunicado</h3>
+                            <form onSubmit={onAddAnnouncement} className="space-y-4">
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="announcementTitle">
+                                        Título del Comunicado
+                                    </label>
+                                    <input type="text" id="announcementTitle" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="announcementContent">
+                                        Contenido del Comunicado
+                                    </label>
+                                    <textarea id="announcementContent" rows="4" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400 resize-y" required></textarea>
+                                </div>
+                                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200">
+                                    Publicar Comunicado
+                                </button>
+                            </form>
+                        </div>
+
+                        <h3 className="text-2xl font-semibold text-gray-700 mb-4">Comunicados Publicados</h3>
+                        {announcements.length === 0 ? (
+                            <p className="text-gray-600">No hay comunicados publicados.</p>
+                        ) : (
+                            <div className="space-y-4">
+                                {announcements.map(announcement => (
+                                    <div key={announcement.id} className="p-4 bg-white rounded-lg shadow-sm border-l-4 border-blue-400">
+                                        <p className="font-semibold text-gray-800 text-lg mb-1">{announcement.title}</p>
+                                        <p className="text-gray-700 text-base">{announcement.content}</p>
+                                        <span className="text-sm text-gray-500 block mt-2">Publicado: {announcement.date}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            function AdminReports({ adminReportData, adminTrafficData, adminAlertTypeData, simulateAiSummary }) {
+                // Se utiliza Chart.js, verificar su disponibilidad
+                const canRenderCharts = typeof Chart !== 'undefined';
+
+                useEffect(() => {
+                    // Solo intentar renderizar si Chart.js está disponible
+                    if (canRenderCharts) {
+                        // Limpiar canvas anteriores si existen
+                        const cleanupChart = (chartId) => {
+                            const chartInstance = Chart.getChart(chartId);
+                            if (chartInstance) {
+                                chartInstance.destroy();
+                            }
+                        };
+                        cleanupChart('ingresosEgresosChart');
+                        cleanupChart('alertasVisitasChart');
+                        cleanupChart('alertTypeChart');
+
+                        // Gráfico de Barras: Ingresos y Egresos
+                        new Chart(document.getElementById('ingresosEgresosChart'), {
+                            type: 'bar',
+                            data: {
+                                labels: adminReportData.labels.map(label => wrapLabel(label)),
+                                datasets: adminReportData.datasets
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(tooltipItems) {
+                                                const item = tooltipItems[0];
+                                                let label = item.chart.data.labels[item.dataIndex];
+                                                if (Array.isArray(label)) {
+                                                    return label.join(' ');
+                                                } else {
+                                                    return label;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+
+                        // Gráfico de Líneas: Alertas IA y Visitas
+                        new Chart(document.getElementById('alertasVisitasChart'), {
+                            type: 'line',
+                            data: {
+                                labels: adminTrafficData.labels.map(label => wrapLabel(label)),
+                                datasets: adminTrafficData.datasets
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(tooltipItems) {
+                                                const item = tooltipItems[0];
+                                                let label = item.chart.data.labels[item.dataIndex];
+                                                if (Array.isArray(label)) {
+                                                    return label.join(' ');
+                                                } else {
+                                                    return label;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+
+                        // Gráfico de Torta: Distribución de Tipos de Alerta
+                        new Chart(document.getElementById('alertTypeChart'), {
+                            type: 'pie',
+                            data: {
+                                labels: adminAlertTypeData.labels.map(label => wrapLabel(label)),
+                                datasets: adminAlertTypeData.datasets
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    tooltip: {
+                                        callbacks: {
+                                            title: function(tooltipItems) {
+                                                const item = tooltipItems[0];
+                                                let label = item.chart.data.labels[item.dataIndex];
+                                                if (Array.isArray(label)) {
+                                                    return label.join(' ');
+                                                } else {
+                                                    return label;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }, [adminReportData, adminTrafficData, adminAlertTypeData]); // Dependencias de useEffect para que se actualice si los datos cambian
+
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Reportes y Estadísticas</h2>
+
+                        {canRenderCharts ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                                <div className="bg-gray-50 p-6 rounded-lg shadow-sm">
+                                    <h3 className="text-xl font-semibold text-gray-700 mb-4">Ingresos y Egresos por Mes</h3>
+                                    <div className="chartjs-container">
+                                        <canvas id="ingresosEgresosChart"></canvas>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gray-50 p-6 rounded-lg shadow-sm">
+                                    <h3 className="text-xl font-semibold text-gray-700 mb-4">Alertas de IA y Visitas Mensuales</h3>
+                                    <div className="chartjs-container">
+                                        <canvas id="alertasVisitasChart"></canvas>
+                                    </div>
+                                </div>
+
+                                <div className="bg-gray-50 p-6 rounded-lg shadow-sm lg:col-span-2 flex flex-col items-center">
+                                    <h3 className="text-xl font-semibold text-gray-700 mb-4">Distribución de Tipos de Alerta (Simulado)</h3>
+                                    <div className="chartjs-container !h-[250px] !max-h-[300px] !w-[250px]">
+                                        <canvas id="alertTypeChart"></canvas>
+                                    </div>
+                                    <div className="text-sm text-gray-600 mt-4">
+                                        <ul className="list-disc list-inside">
+                                            {adminAlertTypeData.labels.map((label, index) => (
+                                                <li key={index} style={{ color: COLORS[index % COLORS.length] }}>
+                                                    <span className="text-gray-800">{label}:</span> {adminAlertTypeData.datasets[0].data[index]}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="p-6 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                                <p className="font-semibold mb-2">Advertencia: Los gráficos no se pueden mostrar.</p>
+                                <p>La librería de gráficos (Chart.js) no se cargó correctamente. Esto puede deberse a problemas de conexión o a que los enlaces de la CDN no están accesibles desde su ubicación.</p>
+                                <p className="text-sm mt-2">En un entorno de producción real, aquí vería gráficos interactivos de ingresos, egresos, alertas de IA y visitas mensuales.</p>
+                            </div>
+                        )}
+
+                        <div className="bg-blue-50 p-6 rounded-lg shadow-sm">
+                            <h3 className="text-xl font-semibold text-gray-700 mb-4">Resumen de Actividad de IA</h3>
+                            <p className="text-gray-600 mb-4" id="aiSummaryResult">
+                                Haz clic en el botón para generar un resumen de las actividades de seguridad del último mes, basado en el análisis de la Inteligencia Artificial.
+                            </p>
+                            <button
+                                onClick={simulateAiSummary}
+                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200"
+                            >
+                                Generar Resumen de IA
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            function AdminPayments() {
+                const [paymentMethod, setPaymentMethod] = useState('mercadopago'); // 'mercadopago' or 'transferencia'
+                const [proofFile, setProofFile] = useState(null);
+
+                const handlePaymentSubmit = () => {
+                    if (paymentMethod === 'mercadopago') {
+                        alert('Redirigiendo a Mercado Pago para completar el pago...');
+                        // En un entorno real, aquí iría la lógica para integrar con la API de Mercado Pago.
+                    } else if (paymentMethod === 'transferencia') {
+                        if (proofFile) {
+                            alert('Comprobante de transferencia adjuntado con éxito. Su pago será verificado.');
+                            // En un entorno real, aquí se subiría el archivo a un servidor seguro.
+                            setProofFile(null); // Clear file input
+                        } else {
+                            alert('Por favor, adjunta el comprobante de transferencia.');
+                        }
+                    }
+                };
+
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Gestión de Pagos</h2>
+                        <p className="text-gray-600 mb-4">
+                            Aquí podrás ver tu historial de pagos, descargar facturas y realizar nuevos pagos por el servicio de Aura IA Security.
+                        </p>
+                        
+                        <div className="p-6 bg-gray-50 rounded-lg shadow-sm text-center mb-8">
+                            <i className="fas fa-wallet text-6xl text-green-600 mx-auto mb-4"></i>
+                            <p className="text-xl font-semibold text-gray-700 mb-4">Tu próximo pago: $1,200 USD</p>
+                            <p className="text-gray-600 mb-6">Vencimiento: 30 de Julio de 2025</p>
+
+                            <div className="mb-6">
+                                <h3 className="text-lg font-semibold text-gray-700 mb-3">Selecciona tu método de pago:</h3>
+                                <div className="flex flex-col sm:flex-row justify-center space-y-2 sm:space-y-0 sm:space-x-4">
+                                    <label className="inline-flex items-center">
+                                        <input 
+                                            type="radio" 
+                                            name="paymentMethod" 
+                                            value="mercadopago" 
+                                            checked={paymentMethod === 'mercadopago'} 
+                                            onChange={() => setPaymentMethod('mercadopago')}
+                                            className="form-radio text-blue-600"
+                                        />
+                                        <span className="ml-2 text-gray-700">Mercado Pago</span>
+                                    </label>
+                                    <label className="inline-flex items-center">
+                                        <input 
+                                            type="radio" 
+                                            name="paymentMethod" 
+                                            value="transferencia" 
+                                            checked={paymentMethod === 'transferencia'} 
+                                            onChange={() => setPaymentMethod('transferencia')}
+                                            className="form-radio text-blue-600"
+                                        />
+                                        <span className="ml-2 text-gray-700">Transferencia Bancaria</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {paymentMethod === 'transferencia' && (
+                                <div className="mb-6 p-4 border border-gray-300 rounded-lg bg-white">
+                                    <p className="text-gray-700 mb-3 font-semibold">Datos para Transferencia:</p>
+                                    <p className="text-gray-600 text-sm">Banco: [Nombre del Banco]</p>
+                                    <p className="text-gray-600 text-sm">CUIT: [CUIT de Aura IA Security]</p>
+                                    <p className="text-gray-600 text-sm">Alias: [Alias de CBU]</p>
+                                    <p className="text-gray-600 text-sm">CBU: [Número de CBU]</p>
+                                    <p className="text-gray-600 text-sm mt-3 font-semibold">Adjuntar Comprobante:</p>
+                                    <input 
+                                        type="file" 
+                                        onChange={(e) => setProofFile(e.target.files[0])} 
+                                        className="w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 mt-2"
+                                    />
+                                    {proofFile && <p className="text-sm text-gray-500 mt-2">Archivo seleccionado: {proofFile.name}</p>}
+                                </div>
+                            )}
+
+                            <button 
+                                onClick={handlePaymentSubmit}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg focus:outline-none focus:shadow-outline transition duration-200"
+                            >
+                                {paymentMethod === 'mercadopago' ? 'Pagar con Mercado Pago' : 'Confirmar Transferencia'}
+                            </button>
+                        </div>
+
+                        <div className="mt-8">
+                            <h3 className="text-2xl font-semibold text-gray-700 mb-4">Historial de Pagos</h3>
+                            <div className="table-container">
+                                <table className="min-w-full bg-white rounded-lg shadow-sm">
+                                    <thead>
+                                        <tr className="table-header">
+                                            <th className="py-3 px-6 text-left">Fecha</th>
+                                            <th className="py-3 px-6 text-left">Monto</th>
+                                            <th className="py-3 px-6 text-left">Concepto</th>
+                                            <th className="py-3 px-6 text-left">Estado</th>
+                                            <th className="py-3 px-6 text-left">Factura</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-gray-600 text-sm font-light">
+                                        <tr className="border-b border-gray-200 table-row-hover">
+                                            <td className="py-3 px-6 text-left">10/06/2025</td>
+                                            <td className="py-3 px-6 text-left">$1,200 USD</td>
+                                            <td className="py-3 px-6 text-left">Servicio de Monitoreo Julio</td>
+                                            <td className="py-3 px-6 text-left"><span className="bg-green-200 text-green-700 py-1 px-3 rounded-full text-xs font-semibold">Pagado</span></td>
+                                            <td className="py-3 px-6 text-left"><a href="#" className="text-blue-600 hover:underline">Descargar PDF</a></td>
+                                        </tr>
+                                        <tr className="border-b border-gray-200 table-row-hover">
+                                            <td className="py-3 px-6 text-left">10/05/2025</td>
+                                            <td className="py-3 px-6 text-left">$1,200 USD</td>
+                                            <td className="py-3 px-6 text-left">Servicio de Monitoreo Junio</td>
+                                            <td className="py-3 px-6 text-left"><span className="bg-green-200 text-green-700 py-1 px-3 rounded-full text-xs font-semibold">Pagado</span></td>
+                                            <td className="py-3 px-6 text-left"><a href="#" className="text-blue-600 hover:underline">Descargar PDF</a></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            function AdminSettings({ cameraPrivacySettings, onCameraPrivacyToggle }) { // Añadido onCameraPrivacyToggle
+                return (
+                    <div className="section-container">
+                        <h2 className="text-3xl font-bold text-gray-800 mb-6">Ajustes de la Cuenta</h2>
+                        <div className="space-y-6">
+                            <div className="p-6 bg-gray-50 rounded-lg shadow-sm">
+                                <h3 className="text-xl font-semibold text-gray-700 mb-3">Información del Consorcio/Barrio</h3>
+                                <p className="text-gray-600">Nombre: Consorcio Edificio Central</p>
+                                <p className="text-gray-600">Dirección: Av. Principal 123, Córdoba</p>
+                                <p className="text-gray-600">Plan Contratado: Paquete Estándar</p>
+                            </div>
+                            <div className="p-6 bg-gray-50 rounded-lg shadow-sm">
+                                <h3 className="text-xl font-semibold text-gray-700 mb-3">Gestión de Acceso</h3>
+                                <p className="text-gray-600">Configurar permisos de visualización de cámaras para residentes.</p>
+                                <p className="text-gray-600">Gestionar usuarios y roles de acceso a la aplicación.</p>
+                                <button className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200">
+                                    Ir a Gestión Avanzada
+                                </button>
+                            </div>
+                            
+                            {/* Nueva sección: Configuración de Privacidad para Cámaras */}
+                            <div className="p-6 bg-gray-50 rounded-lg shadow-sm">
+                                <h3 className="text-xl font-semibold text-gray-700 mb-3">Configuración de Privacidad de Cámaras</h3>
+                                <p className="text-gray-600 mb-4">Controla qué cámaras pueden ser visualizadas por los residentes a través de la aplicación móvil.</p>
+                                <ul className="space-y-3">
+                                    {cameraPrivacySettings.map(cam => (
+                                        <li key={cam.id} className="flex items-center justify-between p-2 border border-gray-200 rounded-md">
+                                            <span className="text-gray-700">{cam.name}</span>
+                                            <label className="inline-flex relative items-center cursor-pointer">
+                                                <input 
+                                                    type="checkbox" 
+                                                    value="" 
+                                                    className="sr-only peer" 
+                                                    checked={cam.visibleToResidents}
+                                                    onChange={() => onCameraPrivacyToggle(cam.id)}
+                                                />
+                                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                                <span className="ml-3 text-sm font-medium text-gray-900">{cam.visibleToResidents ? 'Visible' : 'Oculta'}</span>
+                                            </label>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+
+            const container = document.getElementById('root');
+            if (container) {
+                const root = ReactDOM.createRoot(container);
+                root.render(React.createElement(App, null));
+            } else {
+                console.error("Error: Elemento con ID 'root' no encontrado en el DOM.");
+            }
+        }; // Fin de window.onload
+    </script>
+</body>
+</html>
