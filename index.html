@@ -279,7 +279,7 @@
                     const qrData = `Visitante: ${visitorName}, DNI: ${visitorDNI}, Fecha: ${visitDate} ${visitTime}`;
                     const pinCode = Math.floor(1000 + Math.random() * 9000);
 
-                    setVisits([...visits, { visitorName, visitorDNI, visitDate, visitTime, qrData, pinCode, status: 'Pendiente' }]);
+                    setVisits([...visits, { id: Date.now(), visitorName, visitorDNI, visitDate, visitTime, qrData, pinCode, status: 'Pendiente' }]);
                     e.target.reset();
                     alert(`Visita de ${visitorName} precargada. Ver QR en la tabla.`);
                     // Simulate activity log entry
@@ -294,7 +294,6 @@
                     const accessType = e.target.progAccessType.value;
                     const tempCode = `${accessType.substring(0,3).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-                    setVisits(prevVisits => prevVisits.map(v => v.id === 0 ? {...v, tempCode} : v)); // Esto no hace nada util
                     setVisits(prevVisits => [...prevVisits, { id: Date.now(), visitorName, accessStartDate, accessEndDate, accessType, tempCode, status: 'Programado' }]);
                     e.target.reset();
                     alert(`Acceso programado para ${visitorName} con código temporal: ${tempCode}`);
@@ -308,7 +307,7 @@
                     const personnelDNI = e.target.personnelDNI.value;
                     const personnelVehicle = e.target.personnelVehicle?.value || 'N/A';
                     
-                    setServicePersonnel([...servicePersonnel, { personnelName, personnelTask, personnelDNI, personnelVehicle, status: 'Activo' }]);
+                    setServicePersonnel([...servicePersonnel, { id: Date.now(), personnelName, personnelTask, personnelDNI, personnelVehicle, status: 'Activo' }]);
                     e.target.reset();
                     alert(`Personal de servicio ${personnelName} registrado.`);
                     // Simulate activity log entry
@@ -433,7 +432,8 @@
                         {/* Barra lateral para escritorio y móvil */}
                         <div className={`fixed inset-y-0 left-0 w-64 bg-gray-800 text-white p-4 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 z-40`}>
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-2xl font-bold">Aura IA App</h2>
+                                {/* Logo en la barra lateral de la app */}
+                                <img src="assets/logo-aura.png" alt="Logo Aura IA App" class="h-8 w-auto rounded-md" />
                                 <button className="md:hidden" onClick={() => setIsSidebarOpen(false)}>
                                     <i className="fas fa-times text-xl"></i>
                                 </button>
@@ -1259,6 +1259,7 @@
                         <h2 className="text-3xl font-bold text-gray-800 mb-6">Contactar Guardia / Soporte</h2>
                         <p className="text-gray-600 mb-4">
                             Utiliza este chat para consultas generales o los botones de emergencia para situaciones críticas.
+                            También puedes llamar directamente a la central de monitoreo.
                             Todas las interacciones y alertas quedan registradas para seguimiento.
                         </p>
                         <div className="space-y-4">
@@ -1308,7 +1309,7 @@
                                 </button>
                                 <button 
                                     onClick={handleEmergencyCall} 
-                                    className={`w-full sm:w-1/3 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200 ${emergencyActive ? 'bg-red-800 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white'}`}
+                                    className={`w-full sm:w-1/3 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200 mt-4 ${emergencyActive ? 'bg-red-800 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white'}`}
                                     disabled={emergencyActive}
                                 >
                                     <i className="fas fa-exclamation-triangle mr-2"></i> Botón de Emergencia / Pánico
