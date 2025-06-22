@@ -117,7 +117,7 @@
         // URL base de su backend en Google App Engine
         // ¡IMPORTANTE! Reemplace esta URL con la URL real de su despliegue en App Engine.
         const BACKEND_API_BASE_URL = 'https://auraia-463715.rj.r.appspot.com/api'; 
-        // Por ejemplo: 'https://mi-proyecto-id.appspot.com/api'
+        // Por ejemplo: 'https://su-proyecto-id.appspot.com/api'
 
         window.onload = function() {
             // Verifica que React y ReactDOM estén cargados
@@ -127,6 +127,7 @@
             }
             if (typeof Chart === 'undefined') {
                 console.warn("Advertencia: Chart.js no se cargó correctamente. Los gráficos en la sección de Reportes no se renderizarán.");
+                // No detenemos la aplicación aquí para que el resto de la funcionalidad sea accesible
             }
             
             const { useState, useEffect, useRef } = React;
@@ -206,28 +207,10 @@
                         fetchData('/announcements', setCommunityAnnouncements);
                         fetchData('/packages', setPackages);
                         fetchData('/camera-privacy', setCameraPrivacySettings);
-                        // Para los datos de reportes, podrías necesitar un endpoint que los genere o los devuelva ya estructurados
-                        // Por ahora, usamos datos fijos si el backend no los genera dinámicamente o si Chart.js no carga
-                        setAdminReportData({ // Datos fijos como fallback o para la demo
-                            labels: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio'],
-                            datasets: [
-                                { label: 'Ingresos', data: [4000, 3000, 2000, 2780, 1890, 2390], backgroundColor: COLORS[0], borderColor: COLORS[0], borderWidth: 1, },
-                                { label: 'Egresos', data: [2400, 1398, 9800, 3908, 4800, 3800], backgroundColor: COLORS[1], borderColor: COLORS[1], borderWidth: 1, }
-                            ]
-                        });
-                        setAdminTrafficData({ // Datos fijos como fallback
-                            labels: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio'],
-                            datasets: [
-                                { label: 'Alertas IA', data: [150, 200, 120, 300, 250, 180], borderColor: COLORS[2], tension: 0.4, fill: false, },
-                                { label: 'Visitas Registradas', data: [800, 900, 700, 1200, 1000, 950], borderColor: COLORS[3], tension: 0.4, fill: false, }
-                            ]
-                        });
-                        setAdminAlertTypeData({ // Datos fijos como fallback
-                            labels: ['Intrusión', 'Merodeo', 'Objeto Abandonado', 'Activación Botón Pánico', 'Otros Eventos'],
-                            datasets: [
-                                { data: [400, 300, 300, 200, 100], backgroundColor: COLORS.slice(0, 5), borderColor: '#ffffff', borderWidth: 2, }
-                            ]
-                        });
+                        // Cargar datos para gráficos (pueden ser endpoints separados si el backend los genera)
+                        fetchData('/admin-report-data', setAdminReportData);
+                        fetchData('/admin-traffic-data', setAdminTrafficData);
+                        fetchData('/admin-alert-type-data', setAdminAlertTypeData);
                     }
                 }, [isLoggedIn]); // Se ejecuta cuando isLoggedIn cambia a true
 
@@ -280,7 +263,8 @@
                         });
                         const data = await response.json();
                         if (response.ok) {
-                            setVisits(prev => [...prev, data.visit]);
+                            // Actualizar la lista local de visitas con el nuevo dato del backend
+                            fetchData('/visits', setVisits); 
                             alert(data.message);
                             e.target.reset();
                             fetchData('/activity-log', setActivityLog); // Actualizar log de actividad
@@ -309,7 +293,7 @@
                         });
                         const data = await response.json();
                         if (response.ok) {
-                            setVisits(prev => [...prev, data.access]);
+                            fetchData('/visits', setVisits); // Actualizar la lista de visitas
                             alert(data.message);
                             e.target.reset();
                             fetchData('/activity-log', setActivityLog);
@@ -337,7 +321,7 @@
                         });
                         const data = await response.json();
                         if (response.ok) {
-                            setServicePersonnel(prev => [...prev, data.personnel]);
+                            fetchData('/service-personnel', setServicePersonnel); // Actualizar la lista de personal
                             alert(data.message);
                             e.target.reset();
                             fetchData('/activity-log', setActivityLog);
@@ -353,9 +337,9 @@
                 const simulateAiSummary = async () => {
                     try {
                         const response = await fetch(`${BACKEND_API_BASE_URL}/ai-summary`, {
-                            method: 'POST', // Asumiendo que es POST para generar resumen
+                            method: 'POST', 
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ prompt: "Genera un resumen conciso de actividad de seguridad..." }) // Enviar un prompt al backend
+                            body: JSON.stringify({ prompt: "Genera un resumen conciso de actividad de seguridad..." }) 
                         });
                         const data = await response.json();
                         if (response.ok && data.summary) {
@@ -378,7 +362,7 @@
                         });
                         const data = await response.json();
                         if (response.ok) {
-                            setIncidents(prev => prev.map(inc => inc.id === id ? { ...inc, status: newStatus } : inc));
+                            fetchData('/incidents', setIncidents); // Actualizar la lista de incidentes
                             alert(data.message);
                             fetchData('/activity-log', setActivityLog);
                         } else {
@@ -403,7 +387,7 @@
                         });
                         const data = await response.json();
                         if (response.ok) {
-                            setCommunityAnnouncements(prev => [...prev, data.announcement]);
+                            fetchData('/announcements', setCommunityAnnouncements); // Actualizar la lista de comunicados
                             alert(data.message);
                             e.target.reset();
                             fetchData('/activity-log', setActivityLog);
@@ -424,7 +408,7 @@
                         });
                         const data = await response.json();
                         if (response.ok) {
-                            setPackages(prev => prev.map(pkg => pkg.id === id ? { ...pkg, status: 'Retirado', pickedUp: true } : pkg));
+                            fetchData('/packages', setPackages); // Actualizar la lista de paquetes
                             alert(data.message);
                             fetchData('/activity-log', setActivityLog);
                         } else {
@@ -445,9 +429,7 @@
                         });
                         const data = await response.json();
                         if (response.ok) {
-                            setCameraPrivacySettings(prev => prev.map(cam => 
-                                cam.id === cameraId ? { ...cam, visibleToResidents: !currentVisibility } : cam
-                            ));
+                            fetchData('/camera-privacy', setCameraPrivacySettings); // Actualizar configuración de privacidad
                             alert(data.message);
                             fetchData('/activity-log', setActivityLog);
                         } else {
@@ -465,13 +447,12 @@
                             const response = await fetch(`${BACKEND_API_BASE_URL}/emergency-alert`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                // Aquí se enviaría información relevante (usuario, ubicación, tipo de emergencia)
                                 body: JSON.stringify({ type: 'Silenciosa', location: 'Desde App Móvil', userId: username }) 
                             });
                             const data = await response.json();
                             if (response.ok) {
                                 alert(data.message);
-                                fetchData('/activity-log', setActivityLog); // Actualizar log de actividad
+                                fetchData('/activity-log', setActivityLog); 
                             } else {
                                 alert(`Error al enviar alerta silenciosa: ${data.message}`);
                             }
@@ -484,7 +465,6 @@
 
 
                 useEffect(() => {
-                    // Si el usuario está logueado, intentamos cargar datos del backend
                     if (isLoggedIn) {
                         fetchData('/visits', setVisits);
                         fetchData('/service-personnel', setServicePersonnel);
@@ -494,14 +474,14 @@
                         fetchData('/announcements', setCommunityAnnouncements);
                         fetchData('/packages', setPackages);
                         fetchData('/camera-privacy', setCameraPrivacySettings);
+                        fetchData('/admin-report-data', setAdminReportData);
+                        fetchData('/admin-traffic-data', setAdminTrafficData);
+                        fetchData('/admin-alert-type-data', setAdminAlertTypeData);
                     }
-                }, [isLoggedIn]); // Este useEffect se ejecuta cuando isLoggedIn cambia (ej. al loguearse)
+                }, [isLoggedIn]);
 
-                // Este useEffect se mantiene para simular el resumen AI cuando el admin entra a reportes,
-                // pero la llamada es ahora a un endpoint de backend.
                 useEffect(() => {
                     if (isLoggedIn && userRole === 'admin' && activeSection === 'reports') {
-                        // Aquí, la simulación de AI Summary ahora llama al backend.
                         simulateAiSummary(); 
                     }
                 }, [isLoggedIn, userRole, activeSection]);
@@ -797,9 +777,9 @@
                 const totalVisitsToday = visits.filter(v => v.visitDate === new Date().toISOString().slice(0, 10)).length;
                 const totalPersonnelActive = servicePersonnel.length;
                 // Verificar que adminReportData.datasets[0] existe antes de intentar acceder a .data
-                const totalIngresosLastMonth = adminReportData.datasets[0] ? adminReportData.datasets[0].data.reduce((sum, val) => sum + val, 0) : 0; 
+                const totalIngresosLastMonth = adminReportData.datasets.length > 0 && adminReportData.datasets[0] ? adminReportData.datasets[0].data.reduce((sum, val) => sum + val, 0) : 0; 
                 // Verificar que adminTrafficData.datasets[0] existe antes de intentar acceder a .data
-                const totalAlertasIALastMonth = adminTrafficData.datasets[0] ? adminTrafficData.datasets[0].data.reduce((sum, val) => sum + val, 0) : 0; 
+                const totalAlertasIALastMonth = adminTrafficData.datasets.length > 0 && adminTrafficData.datasets[0] ? adminTrafficData.datasets[0].data.reduce((sum, val) => sum + val, 0) : 0; 
 
                 return (
                     <div className="section-container">
@@ -982,7 +962,7 @@
                                     <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="progAccessType">
                                         Tipo de Acceso
                                     </label>
-                                    <select id="progAccessType" className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required>
+                                    <select id="progAccessType" className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline focus:ring-2 focus:ring-blue-400" required>
                                         <option value="">Seleccionar...</option>
                                         <option value="Visita Recurrente">Visita Recurrente</option>
                                         <option value="Mantenimiento">Mantenimiento</option>
@@ -1183,7 +1163,7 @@
                         </div>
 
                         <div className="video-feed-placeholder">
-                            <i className={`${cameraOptions.find(c => c.id === selectedCamera)?.icon} text-6xl opacity: 0.5; absolute`}></i>
+                            <i className={`${cameraOptions.find(c => c.id === selectedCamera)?.icon} text-6xl opacity-50 absolute`}></i>
                             <p>{cameraOptions.find(c => c.id === selectedCamera)?.name} - Transmisión en Vivo (Simulado)</p>
                         </div>
                         
@@ -1233,7 +1213,7 @@
                         });
                         const data = await response.json();
                         if (response.ok) {
-                            onMarkPickedUp(id); // Actualizar estado en App
+                            fetchData('/packages', setPackages); // Actualizar estado en App
                             alert(data.message);
                             fetchData('/activity-log', setActivityLog); // Actualizar log
                         } else {
@@ -1368,7 +1348,7 @@
                 );
             }
 
-            function ContactGuard({ handleSilentEmergencyCall }) {
+            function ContactGuard({ handleSilentEmergencyCall, username }) { // Añadido username para enviar en la alerta
                 const [message, setMessage] = useState('');
                 const [chatHistory, setChatHistory] = useState([]);
                 const [emergencyActive, setEmergencyActive] = useState(false);
@@ -1376,12 +1356,11 @@
                 const handleSendMessage = async (e) => {
                     e.preventDefault();
                     if (message.trim()) {
-                        // Simular envío de mensaje al backend
                         try {
                             const response = await fetch(`${BACKEND_API_BASE_URL}/chat-message`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ message: message, sender: 'user' })
+                                body: JSON.stringify({ message: message, sender: username || 'unknown' }) // Enviar el usuario que envía el chat
                             });
                             const data = await response.json();
                             if (response.ok) {
@@ -1400,20 +1379,24 @@
                     }
                 };
 
-                const handleCallGuard = () => {
+                const handleCallGuard = async () => { // Marcado como async
                     alert('Llamando a la central de monitoreo de Aura IA Security... Por favor, espere.');
-                    // Simular notificación al backend
-                    fetch(`${BACKEND_API_BASE_URL}/call-guard`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ userId: 'current_user_id', location: 'current_user_location' })
-                    }).then(response => response.json())
-                      .then(data => console.log('Llamada a guardia notificada al backend:', data))
-                      .catch(error => console.error('Error al notificar llamada a guardia:', error));
-
-                    setTimeout(() => {
-                        setChatHistory(prev => [...prev, { type: 'system', text: 'Conectado con la central. Un guardia atenderá en breve.' }]);
-                    }, 1500);
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}/call-guard`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: username, location: 'App Móvil' }) // Enviar usuario y ubicación
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            setChatHistory(prev => [...prev, { type: 'system', text: data.message || 'Conectado con la central. Un guardia atenderá en breve.' }]);
+                        } else {
+                            alert(`Error al iniciar llamada: ${data.message}`);
+                        }
+                    } catch (error) {
+                        console.error('Error al notificar llamada a guardia:', error);
+                        alert('Ocurrió un error al intentar llamar al guardia.');
+                    }
                 };
 
                 const handleEmergencyCall = async () => {
@@ -1427,7 +1410,7 @@
                             const data = await response.json();
                             if (response.ok) {
                                 setEmergencyActive(true);
-                                setChatHistory(prev => [...prev, { type: 'system', text: `¡ALERTA DE EMERGENCIA ACTIVADA! ${data.message}. Se ha generado un ticket de soporte.` }]);
+                                setChatHistory(prev => [...prev, { type: 'system', text: `¡ALERTA DE EMERGENCIA ACTIVADA! ${data.message || 'La guardia ha sido notificada y está evaluando la situación. Se ha generado un ticket de soporte.'} Mantenga la calma.` }]);
                                 setTimeout(() => {
                                     setChatHistory(prev => [...prev, { type: 'guard', text: 'Alerta recibida. Estamos monitoreando su ubicación y cámara. Un operador se pondrá en contacto o se enviará personal. Manténgase en línea si es seguro.' }]);
                                 }, 2000);
@@ -1953,7 +1936,7 @@
                                                     value="" 
                                                     className="sr-only peer" 
                                                     checked={cam.visibleToResidents}
-                                                    onChange={() => onCameraPrivacyToggle(cam.id)}
+                                                    onChange={() => onCameraPrivacyToggle(cam.id, cam.visibleToResidents)} // Pasa también el estado actual
                                                 />
                                                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                                 <span className="ml-3 text-sm font-medium text-gray-900">{cam.visibleToResidents ? 'Visible' : 'Oculta'}</span>
