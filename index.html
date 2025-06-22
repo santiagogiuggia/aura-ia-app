@@ -114,6 +114,11 @@
 
     <!-- El script principal de la aplicación React va al final del body -->
     <script type="text/babel">
+        // URL base de su backend en Google App Engine
+        // ¡IMPORTANTE! Reemplace esta URL con la URL real de su despliegue en App Engine.
+        const BACKEND_API_BASE_URL = 'https://auraia-463715.rj.r.appspot.com/api'; 
+        // Por ejemplo: 'https://mi-proyecto-id.appspot.com/api'
+
         window.onload = function() {
             // Verifica que React y ReactDOM estén cargados
             if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
@@ -122,7 +127,6 @@
             }
             if (typeof Chart === 'undefined') {
                 console.warn("Advertencia: Chart.js no se cargó correctamente. Los gráficos en la sección de Reportes no se renderizarán.");
-                // No detenemos la aplicación aquí para que el resto de la funcionalidad sea accesible
             }
             
             const { useState, useEffect, useRef } = React;
@@ -159,106 +163,95 @@
                 const [activeSection, setActiveSection] = useState('dashboard');
                 const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+                // Estados de la aplicación (ahora inicializados vacíos, se llenarán desde el backend)
                 const [visits, setVisits] = useState([]);
                 const [servicePersonnel, setServicePersonnel] = useState([]);
-                const [notifications, setNotifications] = useState([
-                    { id: 1, type: 'info', message: 'Mantenimiento de ascensor programado para el lunes 24/06.' },
-                    { id: 2, type: 'alert', message: 'Actividad sospechosa detectada en perímetro Norte. Guardia en monitoreo.' },
-                    { id: 3, type: 'success', message: 'Visita de Juan Pérez autorizada por su unidad.' },
-                ]);
-                const [activityLog, setActivityLog] = useState([
-                    { id: 1, time: '14:30', type: 'Acceso', description: 'Visita de Juan Pérez autorizada y registrada.', icon: 'fas fa-user-check', color: 'text-green-500' },
-                    { id: 2, time: '14:25', type: 'Alerta IA', description: 'Detección de movimiento inusual en perímetro sector este.', icon: 'fas fa-exclamation-triangle', color: 'text-yellow-500' },
-                    { id: 3, time: '14:20', type: 'Ingreso', description: 'Personal de limpieza (María G. - DNI 123456) ingresó.', icon: 'fas fa-briefcase', color: 'text-blue-500' },
-                    { id: 4, time: '14:00', type: 'Sistema', description: 'Ronda de dron programada completada en sector sur.', icon: 'fas fa-drone', color: 'text-purple-500' },
-                ]);
-                const [incidents, setIncidents] = useState([
-                    { id: 1, date: '2025-06-15', time: '02:30', type: 'Intrusión Perimetral', status: 'Cerrado', priority: 'Alta', description: 'Detectado cruce de cerca en sector NW. Personal de campo despachado. Falsa alarma (animal).', attachments: ['/simulated-evidence-1.jpg'] },
-                    { id: 2, date: '2025-06-10', time: '18:15', type: 'Vehículo no autorizado', status: 'Cerrado', priority: 'Media', description: 'Vehículo con patente no registrada intentó acceso. Se negó y se retiró.', attachments: [] },
-                    { id: 3, date: '2025-06-08', time: '10:00', type: 'Pánico - Ascensor', status: 'Resuelto', priority: 'Urgente', description: 'Residente atrapado en ascensor. Reinicio remoto exitoso.', attachments: [] },
-                ]);
-                const [communityAnnouncements, setCommunityAnnouncements] = useState([
-                    { id: 1, date: '2025-06-20', title: 'Mantenimiento de Garitas de Acceso', content: 'Informamos que el mantenimiento de las garitas de acceso se realizará el 25/06 de 9 a 12hs. Podría haber demoras mínimas.' },
-                    { id: 2, date: '2025-06-18', title: 'Nueva Funcionalidad: Gestión de Encomiendas', content: 'Ya está disponible la nueva sección de gestión de encomiendas en la app para pre-autorizar y recibir notificaciones.' },
-                ]);
-                const [packages, setPackages] = useState([
-                    { id: 1, date: '2025-06-19', sender: 'Amazon', status: 'En Locker', tracking: 'ECOM12345', pickedUp: false },
-                    { id: 2, date: '2025-06-17', sender: 'Correo Argentino', status: 'Retirado', tracking: 'ARCOR98765', pickedUp: true },
-                ]);
-                const [cameraPrivacySettings, setCameraPrivacySettings] = useState([
-                    { id: 'cam1', name: 'Ingreso Principal', visibleToResidents: true },
-                    { id: 'cam2', name: 'Perímetro Norte', visibleToResidents: false },
-                    { id: 'cam3', name: 'Ascensor #1', visibleToResidents: true },
-                    { id: 'cam4', name: 'Estacionamiento', visibleToResidents: false },
-                ]);
+                const [notifications, setNotifications] = useState([]);
+                const [activityLog, setActivityLog] = useState([]);
+                const [incidents, setIncidents] = useState([]);
+                const [communityAnnouncements, setCommunityAnnouncements] = useState([]);
+                const [packages, setPackages] = useState([]);
+                const [cameraPrivacySettings, setCameraPrivacySettings] = useState([]);
 
 
-                // Datos para el gráfico de Ingresos y Egresos (Chart.js compatible)
-                const adminReportData = {
-                    labels: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio'],
-                    datasets: [
-                        {
-                            label: 'Ingresos',
-                            data: [4000, 3000, 2000, 2780, 1890, 2390],
-                            backgroundColor: COLORS[0],
-                            borderColor: COLORS[0],
-                            borderWidth: 1,
-                        },
-                        {
-                            label: 'Egresos',
-                            data: [2400, 1398, 9800, 3908, 4800, 3800],
-                            backgroundColor: COLORS[1],
-                            borderColor: COLORS[1],
-                            borderWidth: 1,
+                // Datos para los gráficos (se inicializan vacíos, se llenarán desde el backend)
+                const [adminReportData, setAdminReportData] = useState({ labels: [], datasets: [] });
+                const [adminTrafficData, setAdminTrafficData] = useState({ labels: [], datasets: [] });
+                const [adminAlertTypeData, setAdminAlertTypeData] = useState({ labels: [], datasets: [] });
+
+
+                // Función para cargar datos desde el backend
+                const fetchData = async (url, setter) => {
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}${url}`);
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
                         }
-                    ]
-                };
-                // Datos para el gráfico de Alertas IA y Visitas (Chart.js compatible)
-                const adminTrafficData = {
-                    labels: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio'],
-                    datasets: [
-                        {
-                            label: 'Alertas IA',
-                            data: [150, 200, 120, 300, 250, 180],
-                            borderColor: COLORS[2],
-                            tension: 0.4,
-                            fill: false,
-                        },
-                        {
-                            label: 'Visitas Registradas',
-                            data: [800, 900, 700, 1200, 1000, 950],
-                            borderColor: COLORS[3],
-                            tension: 0.4,
-                            fill: false,
-                        }
-                    ]
-                };
-                // Datos para el gráfico de Tipos de Alerta (Chart.js compatible)
-                const adminAlertTypeData = {
-                    labels: ['Intrusión', 'Merodeo', 'Objeto Abandonado', 'Activación Botón Pánico', 'Otros Eventos'],
-                    datasets: [
-                        {
-                            data: [400, 300, 300, 200, 100],
-                            backgroundColor: COLORS.slice(0, 5),
-                            borderColor: '#ffffff',
-                            borderWidth: 2,
-                        }
-                    ]
+                        const data = await response.json();
+                        setter(data);
+                    } catch (error) {
+                        console.error(`Error fetching data from ${url}:`, error);
+                        // Puedes añadir un estado de error visible en la UI si lo deseas
+                    }
                 };
 
+                // useEffect para cargar los datos iniciales una vez que el usuario inicie sesión
+                useEffect(() => {
+                    if (isLoggedIn) {
+                        fetchData('/visits', setVisits);
+                        fetchData('/service-personnel', setServicePersonnel);
+                        fetchData('/notifications', setNotifications);
+                        fetchData('/activity-log', setActivityLog);
+                        fetchData('/incidents', setIncidents);
+                        fetchData('/announcements', setCommunityAnnouncements);
+                        fetchData('/packages', setPackages);
+                        fetchData('/camera-privacy', setCameraPrivacySettings);
+                        // Para los datos de reportes, podrías necesitar un endpoint que los genere o los devuelva ya estructurados
+                        // Por ahora, usamos datos fijos si el backend no los genera dinámicamente o si Chart.js no carga
+                        setAdminReportData({ // Datos fijos como fallback o para la demo
+                            labels: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio'],
+                            datasets: [
+                                { label: 'Ingresos', data: [4000, 3000, 2000, 2780, 1890, 2390], backgroundColor: COLORS[0], borderColor: COLORS[0], borderWidth: 1, },
+                                { label: 'Egresos', data: [2400, 1398, 9800, 3908, 4800, 3800], backgroundColor: COLORS[1], borderColor: COLORS[1], borderWidth: 1, }
+                            ]
+                        });
+                        setAdminTrafficData({ // Datos fijos como fallback
+                            labels: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio'],
+                            datasets: [
+                                { label: 'Alertas IA', data: [150, 200, 120, 300, 250, 180], borderColor: COLORS[2], tension: 0.4, fill: false, },
+                                { label: 'Visitas Registradas', data: [800, 900, 700, 1200, 1000, 950], borderColor: COLORS[3], tension: 0.4, fill: false, }
+                            ]
+                        });
+                        setAdminAlertTypeData({ // Datos fijos como fallback
+                            labels: ['Intrusión', 'Merodeo', 'Objeto Abandonado', 'Activación Botón Pánico', 'Otros Eventos'],
+                            datasets: [
+                                { data: [400, 300, 300, 200, 100], backgroundColor: COLORS.slice(0, 5), borderColor: '#ffffff', borderWidth: 2, }
+                            ]
+                        });
+                    }
+                }, [isLoggedIn]); // Se ejecuta cuando isLoggedIn cambia a true
 
-                const handleLogin = (e) => {
+
+                const handleLogin = async (e) => {
                     e.preventDefault();
-                    if (username === 'resident' && password === 'password') {
-                        setIsLoggedIn(true);
-                        setUserRole('resident');
-                        setActiveSection('dashboard');
-                    } else if (username === 'admin' && password === 'adminpass') {
-                        setIsLoggedIn(true);
-                        setUserRole('admin');
-                        setActiveSection('dashboard');
-                    } else {
-                        alert('Credenciales incorrectas. Intenta de nuevo.');
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}/login`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username, password })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            setIsLoggedIn(true);
+                            setUserRole(data.user.role);
+                            setActiveSection('dashboard');
+                            // Aquí se podría guardar el token (data.user.token) en localStorage para futuras peticiones
+                        } else {
+                            alert(`Error de login: ${data.message}`);
+                        }
+                    } catch (error) {
+                        console.error('Error durante el login:', error);
+                        alert('Ocurrió un error al intentar iniciar sesión. Verifique la consola para más detalles.');
                     }
                 };
 
@@ -270,7 +263,7 @@
                     setActiveSection('dashboard');
                 };
 
-                const handleAddVisit = (e) => {
+                const handleAddVisit = async (e) => {
                     e.preventDefault();
                     const visitorName = e.target.visitorName.value;
                     const visitorDNI = e.target.visitorDNI.value;
@@ -279,14 +272,28 @@
                     const qrData = `Visitante: ${visitorName}, DNI: ${visitorDNI}, Fecha: ${visitDate} ${visitTime}`;
                     const pinCode = Math.floor(1000 + Math.random() * 9000);
 
-                    setVisits([...visits, { id: Date.now(), visitorName, visitorDNI, visitDate, visitTime, qrData, pinCode, status: 'Pendiente' }]);
-                    e.target.reset();
-                    alert(`Visita de ${visitorName} precargada. Ver QR en la tabla.`);
-                    // Simulate activity log entry
-                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Gestión', description: `Visita precargada para ${visitorName}.`, icon: 'fas fa-user-plus', color: 'text-blue-500' }, ...prev]);
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}/visits`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ visitorName, visitorDNI, visitDate, visitTime, qrData, pinCode })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            setVisits(prev => [...prev, data.visit]);
+                            alert(data.message);
+                            e.target.reset();
+                            fetchData('/activity-log', setActivityLog); // Actualizar log de actividad
+                        } else {
+                            alert(`Error al agregar visita: ${data.message}`);
+                        }
+                    } catch (error) {
+                        console.error('Error al agregar visita:', error);
+                        alert('Ocurrió un error al registrar la visita.');
+                    }
                 };
 
-                const handleAddProgrammedAccess = (e) => {
+                const handleAddProgrammedAccess = async (e) => {
                     e.preventDefault();
                     const visitorName = e.target.progVisitorName.value;
                     const accessStartDate = e.target.progStartDate.value;
@@ -294,90 +301,211 @@
                     const accessType = e.target.progAccessType.value;
                     const tempCode = `${accessType.substring(0,3).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-                    setVisits(prevVisits => [...prevVisits, { id: Date.now(), visitorName, accessStartDate, accessEndDate, accessType, tempCode, status: 'Programado' }]);
-                    e.target.reset();
-                    alert(`Acceso programado para ${visitorName} con código temporal: ${tempCode}`);
-                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Gestión', description: `Acceso programado creado para ${visitorName}.`, icon: 'fas fa-calendar-check', color: 'text-indigo-500' }, ...prev]);
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}/programmed_access`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ visitorName, accessStartDate, accessEndDate, accessType, tempCode })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            setVisits(prev => [...prev, data.access]);
+                            alert(data.message);
+                            e.target.reset();
+                            fetchData('/activity-log', setActivityLog);
+                        } else {
+                            alert(`Error al programar acceso: ${data.message}`);
+                        }
+                    } catch (error) {
+                        console.error('Error al programar acceso:', error);
+                        alert('Ocurrió un error al programar el acceso.');
+                    }
                 };
 
-                const handleAddPersonnel = (e) => {
+                const handleAddPersonnel = async (e) => {
                     e.preventDefault();
                     const personnelName = e.target.personnelName.value;
                     const personnelTask = e.target.personnelTask.value;
                     const personnelDNI = e.target.personnelDNI.value;
                     const personnelVehicle = e.target.personnelVehicle?.value || 'N/A';
                     
-                    setServicePersonnel([...servicePersonnel, { id: Date.now(), personnelName, personnelTask, personnelDNI, personnelVehicle, status: 'Activo' }]);
-                    e.target.reset();
-                    alert(`Personal de servicio ${personnelName} registrado.`);
-                    // Simulate activity log entry
-                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Gestión', description: `Personal de servicio ${personnelName} registrado.`, icon: 'fas fa-user-tag', color: 'text-green-500' }, ...prev]);
-                };
-
-                const simulateAiSummary = async () => {
-                    const prompt = "Genera un resumen conciso de actividad de seguridad en un barrio cerrado o edificio residencial durante el último mes, destacando eventos clave, eficiencia de la IA y recomendaciones. Máximo 100 palabras.";
-                    const simulatedResponse = {
-                        candidates: [{
-                            content: {
-                                parts: [{
-                                    text: "El último mes mostró una reducción del 15% en incidentes gracias a la IA. La detección de merodeo se optimizó, con 95% de alertas precisas. Se registraron 500 visitas, 80 con precarga por app. Recomendamos reforzar la capacitación en manejo de alertas de drones y revisar el plan de mantenimiento preventivo para cámaras en zonas de alto tráfico para asegurar la continuidad del servicio. La app ha mejorado la fluidez en el ingreso del personal de servicio. Es crucial mantener la redundancia activa."
-                                }]
-                            }
-                        }]
-                    };
-
-                    if (simulatedResponse.candidates && simulatedResponse.candidates.length > 0 &&
-                        simulatedResponse.candidates[0].content && simulatedResponse.candidates[0].content.parts &&
-                        simulatedResponse.candidates[0].content.parts.length > 0) {
-                        const summaryText = simulatedResponse.candidates[0].content.parts[0].text;
-                        document.getElementById('aiSummaryResult').innerText = summaryText;
-                    } else {
-                        document.getElementById('aiSummaryResult').innerText = 'No se pudo generar el resumen de IA en este momento.';
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}/service-personnel`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ personnelName, personnelTask, personnelDNI, personnelVehicle })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            setServicePersonnel(prev => [...prev, data.personnel]);
+                            alert(data.message);
+                            e.target.reset();
+                            fetchData('/activity-log', setActivityLog);
+                        } else {
+                            alert(`Error al registrar personal: ${data.message}`);
+                        }
+                    } catch (error) {
+                        console.error('Error al registrar personal:', error);
+                        alert('Ocurrió un error al registrar el personal.');
                     }
                 };
 
-                const handleIncidentUpdate = (id, newStatus) => {
-                    setIncidents(prev => prev.map(inc => inc.id === id ? { ...inc, status: newStatus } : inc));
-                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Gestión', description: `Incidente #${id} actualizado a ${newStatus}.`, icon: 'fas fa-clipboard-check', color: 'text-purple-500' }, ...prev]);
+                const simulateAiSummary = async () => {
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}/ai-summary`, {
+                            method: 'POST', // Asumiendo que es POST para generar resumen
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ prompt: "Genera un resumen conciso de actividad de seguridad..." }) // Enviar un prompt al backend
+                        });
+                        const data = await response.json();
+                        if (response.ok && data.summary) {
+                            document.getElementById('aiSummaryResult').innerText = data.summary;
+                        } else {
+                            document.getElementById('aiSummaryResult').innerText = `Error al generar resumen de IA: ${data.message || 'Respuesta inesperada'}`;
+                        }
+                    } catch (error) {
+                        console.error('Error al generar resumen de IA:', error);
+                        document.getElementById('aiSummaryResult').innerText = 'Ocurrió un error al generar el resumen de IA.';
+                    }
                 };
 
-                const handleAddAnnouncement = (e) => {
+                const handleIncidentUpdate = async (id, newStatus) => {
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}/incidents/${id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ status: newStatus })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            setIncidents(prev => prev.map(inc => inc.id === id ? { ...inc, status: newStatus } : inc));
+                            alert(data.message);
+                            fetchData('/activity-log', setActivityLog);
+                        } else {
+                            alert(`Error al actualizar incidente: ${data.message}`);
+                        }
+                    } catch (error) {
+                        console.error('Error al actualizar incidente:', error);
+                        alert('Ocurrió un error al actualizar el incidente.');
+                    }
+                };
+
+                const handleAddAnnouncement = async (e) => {
                     e.preventDefault();
                     const title = e.target.announcementTitle.value;
                     const content = e.target.announcementContent.value;
-                    setCommunityAnnouncements(prev => [{ id: Date.now(), date: new Date().toISOString().slice(0, 10), title, content }, ...prev]);
-                    e.target.reset();
-                    alert('Comunicado publicado con éxito.');
-                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Comunicado', description: `Nuevo comunicado: "${title}".`, icon: 'fas fa-bullhorn', color: 'text-orange-500' }, ...prev]);
+                    
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}/announcements`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ title, content })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            setCommunityAnnouncements(prev => [...prev, data.announcement]);
+                            alert(data.message);
+                            e.target.reset();
+                            fetchData('/activity-log', setActivityLog);
+                        } else {
+                            alert(`Error al publicar comunicado: ${data.message}`);
+                        }
+                    } catch (error) {
+                        console.error('Error al publicar comunicado:', error);
+                        alert('Ocurrió un error al publicar el comunicado.');
+                    }
                 };
 
-                const handleMarkPackageAsPickedUp = (id) => {
-                    setPackages(prev => prev.map(pkg => pkg.id === id ? { ...pkg, status: 'Retirado', pickedUp: true } : pkg));
-                    alert('Paquete marcado como retirado.');
-                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Encomienda', description: `Paquete con tracking ${packages.find(p => p.id === id).tracking} retirado.`, icon: 'fas fa-box-check', color: 'text-yellow-600' }, ...prev]);
+                const handleMarkPackageAsPickedUp = async (id) => {
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}/packages/${id}/pickup`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            setPackages(prev => prev.map(pkg => pkg.id === id ? { ...pkg, status: 'Retirado', pickedUp: true } : pkg));
+                            alert(data.message);
+                            fetchData('/activity-log', setActivityLog);
+                        } else {
+                            alert(`Error al marcar paquete: ${data.message}`);
+                        }
+                    } catch (error) {
+                        console.error('Error al marcar paquete como retirado:', error);
+                        alert('Ocurrió un error al marcar el paquete.');
+                    }
                 };
 
-                const handleCameraPrivacyToggle = (cameraId) => {
-                    setCameraPrivacySettings(prev => prev.map(cam => 
-                        cam.id === cameraId ? { ...cam, visibleToResidents: !cam.visibleToResidents } : cam
-                    ));
-                    const toggledCam = cameraPrivacySettings.find(cam => cam.id === cameraId);
-                    setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Ajuste', description: `Visibilidad de cámara "${toggledCam.name}" cambiada a ${toggledCam.visibleToResidents ? 'Deshabilitada' : 'Habilitada'} para residentes.`, icon: 'fas fa-cog', color: 'text-gray-500' }, ...prev]);
+                const handleCameraPrivacyToggle = async (cameraId, currentVisibility) => {
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}/camera-privacy/${cameraId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ visibleToResidents: !currentVisibility })
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            setCameraPrivacySettings(prev => prev.map(cam => 
+                                cam.id === cameraId ? { ...cam, visibleToResidents: !currentVisibility } : cam
+                            ));
+                            alert(data.message);
+                            fetchData('/activity-log', setActivityLog);
+                        } else {
+                            alert(`Error al cambiar privacidad: ${data.message}`);
+                        }
+                    } catch (error) {
+                        console.error('Error al cambiar la privacidad de la cámara:', error);
+                        alert('Ocurrió un error al cambiar la privacidad de la cámara.');
+                    }
                 };
                 
-                const handleSilentEmergencyCall = () => {
+                const handleSilentEmergencyCall = async () => {
                     if (confirm('¿Está seguro que desea activar la emergencia silenciosa? Esto enviará una alerta discreta a la central de monitoreo.')) {
-                        alert('Alerta silenciosa enviada. La guardia ha sido notificada discretamente.');
-                        setActivityLog(prev => [{ id: Date.now(), time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }), type: 'Emergencia', description: 'Activada emergencia silenciosa. Guardia notificada.', icon: 'fas fa-bell-slash', color: 'text-red-500' }, ...prev]);
+                        try {
+                            const response = await fetch(`${BACKEND_API_BASE_URL}/emergency-alert`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                // Aquí se enviaría información relevante (usuario, ubicación, tipo de emergencia)
+                                body: JSON.stringify({ type: 'Silenciosa', location: 'Desde App Móvil', userId: username }) 
+                            });
+                            const data = await response.json();
+                            if (response.ok) {
+                                alert(data.message);
+                                fetchData('/activity-log', setActivityLog); // Actualizar log de actividad
+                            } else {
+                                alert(`Error al enviar alerta silenciosa: ${data.message}`);
+                            }
+                        } catch (error) {
+                            console.error('Error al enviar emergencia silenciosa:', error);
+                            alert('Ocurrió un error al enviar la emergencia silenciosa.');
+                        }
                     }
                 };
 
 
                 useEffect(() => {
+                    // Si el usuario está logueado, intentamos cargar datos del backend
+                    if (isLoggedIn) {
+                        fetchData('/visits', setVisits);
+                        fetchData('/service-personnel', setServicePersonnel);
+                        fetchData('/notifications', setNotifications);
+                        fetchData('/activity-log', setActivityLog);
+                        fetchData('/incidents', setIncidents);
+                        fetchData('/announcements', setCommunityAnnouncements);
+                        fetchData('/packages', setPackages);
+                        fetchData('/camera-privacy', setCameraPrivacySettings);
+                    }
+                }, [isLoggedIn]); // Este useEffect se ejecuta cuando isLoggedIn cambia (ej. al loguearse)
+
+                // Este useEffect se mantiene para simular el resumen AI cuando el admin entra a reportes,
+                // pero la llamada es ahora a un endpoint de backend.
+                useEffect(() => {
                     if (isLoggedIn && userRole === 'admin' && activeSection === 'reports') {
-                        simulateAiSummary();
+                        // Aquí, la simulación de AI Summary ahora llama al backend.
+                        simulateAiSummary(); 
                     }
                 }, [isLoggedIn, userRole, activeSection]);
+
 
                 if (!isLoggedIn) {
                     return (
@@ -1000,6 +1128,9 @@
                 return (
                     <div className="section-container">
                         <h2 className="text-3xl font-bold text-gray-800 mb-6">Notificaciones</h2>
+                        <p className="text-gray-600 mb-4">
+                            Recibe las últimas alertas y comunicados de seguridad y gestión de tu propiedad.
+                        </p>
                         {notifications.length === 0 ? (
                             <p className="text-gray-600">No hay notificaciones nuevas.</p>
                         ) : (
@@ -1052,7 +1183,7 @@
                         </div>
 
                         <div className="video-feed-placeholder">
-                            <i className={`${cameraOptions.find(c => c.id === selectedCamera)?.icon} text-6xl opacity-50 absolute`}></i>
+                            <i className={`${cameraOptions.find(c => c.id === selectedCamera)?.icon} text-6xl opacity: 0.5; absolute`}></i>
                             <p>{cameraOptions.find(c => c.id === selectedCamera)?.name} - Transmisión en Vivo (Simulado)</p>
                         </div>
                         
@@ -1094,8 +1225,24 @@
             }
 
             function PackageManagement({ packages, onMarkPickedUp }) {
-                const handleMarkAsPickedUpClick = (id) => {
-                    onMarkPickedUp(id);
+                const handleMarkAsPickedUpClick = async (id) => {
+                    try {
+                        const response = await fetch(`${BACKEND_API_BASE_URL}/packages/${id}/pickup`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            onMarkPickedUp(id); // Actualizar estado en App
+                            alert(data.message);
+                            fetchData('/activity-log', setActivityLog); // Actualizar log
+                        } else {
+                            alert(`Error al marcar paquete: ${data.message}`);
+                        }
+                    } catch (error) {
+                        console.error('Error al marcar paquete como retirado:', error);
+                        alert('Ocurrió un error al marcar el paquete.');
+                    }
                 };
 
                 return (
@@ -1221,36 +1368,76 @@
                 );
             }
 
-            function ContactGuard({ handleSilentEmergencyCall }) { // Agregada prop handleSilentEmergencyCall
+            function ContactGuard({ handleSilentEmergencyCall }) {
                 const [message, setMessage] = useState('');
                 const [chatHistory, setChatHistory] = useState([]);
                 const [emergencyActive, setEmergencyActive] = useState(false);
 
-                const handleSendMessage = (e) => {
+                const handleSendMessage = async (e) => {
                     e.preventDefault();
                     if (message.trim()) {
-                        setChatHistory([...chatHistory, { type: 'user', text: message }]);
-                        setMessage('');
-                        setTimeout(() => {
-                            setChatHistory(prev => [...prev, { type: 'guard', text: 'Recibido. ¿En qué puedo ayudarte?' }]);
-                        }, 1000);
+                        // Simular envío de mensaje al backend
+                        try {
+                            const response = await fetch(`${BACKEND_API_BASE_URL}/chat-message`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ message: message, sender: 'user' })
+                            });
+                            const data = await response.json();
+                            if (response.ok) {
+                                setChatHistory(prev => [...prev, { type: 'user', text: message }]);
+                                setMessage('');
+                                setTimeout(() => {
+                                    setChatHistory(prev => [...prev, { type: 'guard', text: data.guardResponse || 'Recibido. ¿En qué puedo ayudarte?' }]);
+                                }, 1000);
+                            } else {
+                                alert(`Error al enviar mensaje: ${data.message}`);
+                            }
+                        } catch (error) {
+                            console.error('Error al enviar mensaje de chat:', error);
+                            alert('Ocurrió un error al enviar el mensaje de chat.');
+                        }
                     }
                 };
 
                 const handleCallGuard = () => {
                     alert('Llamando a la central de monitoreo de Aura IA Security... Por favor, espere.');
+                    // Simular notificación al backend
+                    fetch(`${BACKEND_API_BASE_URL}/call-guard`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: 'current_user_id', location: 'current_user_location' })
+                    }).then(response => response.json())
+                      .then(data => console.log('Llamada a guardia notificada al backend:', data))
+                      .catch(error => console.error('Error al notificar llamada a guardia:', error));
+
                     setTimeout(() => {
                         setChatHistory(prev => [...prev, { type: 'system', text: 'Conectado con la central. Un guardia atenderá en breve.' }]);
                     }, 1500);
                 };
 
-                const handleEmergencyCall = () => {
+                const handleEmergencyCall = async () => {
                     if (confirm('¿Está seguro que desea activar el botón de emergencia? Esto enviará una alerta inmediata a la central de monitoreo y creará un ticket de alta prioridad.')) {
-                        setEmergencyActive(true);
-                        setChatHistory(prev => [...prev, { type: 'system', text: '¡ALERTA DE EMERGENCIA ACTIVADA! La guardia ha sido notificada y está evaluando la situación. Se ha generado un ticket de soporte #EMERGENCIA-001. Mantenga la calma.' }]);
-                        setTimeout(() => {
-                            setChatHistory(prev => [...prev, { type: 'guard', text: 'Alerta recibida. Estamos monitoreando su ubicación y cámara. Un operador se pondrá en contacto o se enviará personal. Manténgase en línea si es seguro.' }]);
-                        }, 2000);
+                        try {
+                            const response = await fetch(`${BACKEND_API_BASE_URL}/emergency-alert`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ type: 'Pánico', location: 'Desde App Móvil', userId: username }) 
+                            });
+                            const data = await response.json();
+                            if (response.ok) {
+                                setEmergencyActive(true);
+                                setChatHistory(prev => [...prev, { type: 'system', text: `¡ALERTA DE EMERGENCIA ACTIVADA! ${data.message}. Se ha generado un ticket de soporte.` }]);
+                                setTimeout(() => {
+                                    setChatHistory(prev => [...prev, { type: 'guard', text: 'Alerta recibida. Estamos monitoreando su ubicación y cámara. Un operador se pondrá en contacto o se enviará personal. Manténgase en línea si es seguro.' }]);
+                                }, 2000);
+                            } else {
+                                alert(`Error al enviar alerta de pánico: ${data.message}`);
+                            }
+                        } catch (error) {
+                            console.error('Error al enviar emergencia de pánico:', error);
+                            alert('Ocurrió un error al enviar la emergencia de pánico.');
+                        }
                     }
                 };
 
@@ -1301,7 +1488,7 @@
                                     <i className="fas fa-phone mr-2"></i> Llamar al Guardia
                                 </button>
                                 <button 
-                                    onClick={handleSilentEmergencyCall} // Nuevo botón para emergencia silenciosa
+                                    onClick={handleSilentEmergencyCall} 
                                     className="w-full sm:w-1/3 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200"
                                     disabled={emergencyActive}
                                 >
@@ -1597,15 +1784,34 @@
                 const [paymentMethod, setPaymentMethod] = useState('mercadopago'); // 'mercadopago' or 'transferencia'
                 const [proofFile, setProofFile] = useState(null);
 
-                const handlePaymentSubmit = () => {
+                const handlePaymentSubmit = async () => {
                     if (paymentMethod === 'mercadopago') {
                         alert('Redirigiendo a Mercado Pago para completar el pago...');
                         // En un entorno real, aquí iría la lógica para integrar con la API de Mercado Pago.
                     } else if (paymentMethod === 'transferencia') {
                         if (proofFile) {
-                            alert('Comprobante de transferencia adjuntado con éxito. Su pago será verificado.');
-                            // En un entorno real, aquí se subiría el archivo a un servidor seguro.
-                            setProofFile(null); // Clear file input
+                            // Simular subida de comprobante al backend
+                            try {
+                                const formData = new FormData();
+                                formData.append('proof', proofFile);
+                                formData.append('paymentAmount', '1200 USD'); // Ejemplo de dato a enviar
+
+                                const response = await fetch(`${BACKEND_API_BASE_URL}/upload-payment-proof`, {
+                                    method: 'POST',
+                                    // No se especifica 'Content-Type' para FormData, el navegador lo hace automáticamente
+                                    body: formData 
+                                });
+                                const data = await response.json();
+                                if (response.ok) {
+                                    alert(data.message);
+                                    setProofFile(null); // Clear file input
+                                } else {
+                                    alert(`Error al adjuntar comprobante: ${data.message}`);
+                                }
+                            } catch (error) {
+                                console.error('Error al subir comprobante:', error);
+                                alert('Ocurrió un error al adjuntar el comprobante.');
+                            }
                         } else {
                             alert('Por favor, adjunta el comprobante de transferencia.');
                         }
