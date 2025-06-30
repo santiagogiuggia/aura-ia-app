@@ -17,7 +17,7 @@
     <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
     <!-- Chart.js CDN (for data visualizations) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    
+   
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -773,6 +773,52 @@
                 );
             }
 
+            <input type="file" accept="image/*" onChange={handleImageChange} />
+            const [selectedImageFile, setSelectedImageFile] = useState(null);
+
+const handleImageChange = (event) => {
+    if (event.target.files.length > 0) {
+        setSelectedImageFile(event.target.files[0]);
+    } else {
+        setSelectedImageFile(null);
+    }
+};
+            const formData = new FormData();
+formData.append('image', selectedImageFile); // 'image' debe coincidir con 'request.files['image']' en Flask
+// Si tuviera otros datos a enviar junto con la imagen:
+// formData.append('location', 'Entrada Principal');
+            const BACKEND_API_BASE_URL = "http://192.168.10.236/api"; // Asegúrese que sea la IP de su servidor Ubuntu
+
+async function processImageForAccess() {
+    if (!selectedImageFile) {
+        alert("Por favor, seleccione una imagen primero.");
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', selectedImageFile); // La clave 'image' debe coincidir con Flask request.files['image']
+
+    try {
+        const response = await fetch(`${BACKEND_API_BASE_URL}/process_image_for_recognition`, {
+            method: 'POST',
+            body: formData // Aquí va el objeto FormData, fetch se encarga del Content-Type
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Error HTTP: ${response.status} - ${errorData.message || 'Error desconocido'}`);
+        }
+
+        const result = await response.json();
+        console.log('Resultado de reconocimiento:', result);
+        alert(`Resultado del análisis: ${result.message}`);
+        // Aquí puede actualizar su interfaz de usuario con los detalles de reconocimiento,
+        // mostrar si el acceso fue denegado/autorizado, etc.
+    } catch (error) {
+        console.error('Error al procesar imagen para reconocimiento:', error);
+        alert(`Fallo en el reconocimiento: ${error.message}`);
+    }
+}
             function Dashboard({ userRole, username, visits, servicePersonnel, adminReportData, adminTrafficData }) {
                 const totalVisitsToday = visits.filter(v => v.visitDate === new Date().toISOString().slice(0, 10)).length;
                 const totalPersonnelActive = servicePersonnel.length;
